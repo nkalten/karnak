@@ -13,6 +13,7 @@ import static org.karnak.backend.dicom.DefacingUtil.isAxial;
 import static org.karnak.backend.dicom.DefacingUtil.isCT;
 
 import java.awt.Color;
+import java.awt.Rectangle;
 import java.awt.Shape;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
 import org.dcm4che3.img.op.MaskArea;
 import org.dcm4che3.util.TagUtils;
+import org.karnak.backend.data.converter.RectangleListConverter;
 import org.karnak.backend.data.entity.DestinationEntity;
 import org.karnak.backend.data.entity.ProfileElementEntity;
 import org.karnak.backend.data.entity.ProfileEntity;
@@ -48,10 +50,13 @@ import org.karnak.backend.model.expression.ExprCondition;
 import org.karnak.backend.model.expression.ExpressionResult;
 import org.karnak.backend.model.profilepipe.HMAC;
 import org.karnak.backend.model.profilepipe.HashContext;
+import org.karnak.backend.model.profilebody.MaskBody;
+import org.karnak.backend.model.profilepipe.SensitiveTagDefinition;
 import org.karnak.backend.model.profiles.ActionTags;
 import org.karnak.backend.model.profiles.CleanPixelData;
 import org.karnak.backend.model.profiles.Defacing;
 import org.karnak.backend.model.profiles.ProfileItem;
+import org.karnak.backend.service.ApplicationContextProvider;
 import org.slf4j.MDC;
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
@@ -233,8 +238,20 @@ public class Profile {
 			if (!StringUtil.hasText(sopClassUID)) {
 				throw new IllegalStateException("DICOM Object does not contain sopClassUID");
 			}
-			MaskArea mask = getMask(new MaskStationCondition(dcmCopy.getString(Tag.StationName),
-					dcmCopy.getString(Tag.Columns), dcmCopy.getString(Tag.Rows)));
+
+			// First try to get a mask from the external de-identification image API.
+			// If the API detects sensitive data burned into the image, it returns
+			// mask rectangles to cover them. Otherwise, fall back to the static
+			// mask configuration from the profile.
+			MaskArea mask = fetchMaskFromDeidentifyImageApi(dcmCopy);
+			if (mask == null) {
+				mask = getMask(new MaskStationCondition(dcmCopy.getString(Tag.StationName),
+						dcmCopy.getString(Tag.Columns), dcmCopy.getString(Tag.Rows)));
+			}
+
+			// A mask must be applied with all the US and Secondary Capture sopClassUID,
+			// and with
+			// BurnedInAnnotation
 			if (isCleanPixelAllowedDependingImageType(dcmCopy, sopClassUID)
 					&& evaluateConditionCleanPixelData(dcmCopy)) {
 				context.setMaskArea(mask);
@@ -245,6 +262,67 @@ public class Profile {
 			else {
 				context.setMaskArea(null);
 			}
+		}
+	}
+
+	/**
+	 * Calls the external de-identification image API and converts the returned masks
+	 * into a single {@link MaskArea}.
+	 *
+	 * <p>
+	 * The API analyses the pixel data to detect if sensitive information (patient name,
+	 * ID, etc.) is burned into the image. If it finds something, it returns mask
+	 * rectangles in Karnak YAML format. This method converts them into a {@link MaskArea}
+	 * that can be set directly in the {@link AttributeEditorContext}.
+	 *
+	 * <p>
+	 * If the API is unreachable, returns no masks, or any error occurs, this method
+	 * returns {@code null} so the caller can fall back to the static mask configuration.
+	 * @param dcmCopy DICOM attributes (original copy, before de-identification)
+	 * @return a {@link MaskArea} built from the API response, or {@code null} if no mask
+	 */
+	private MaskArea fetchMaskFromDeidentifyImageApi(Attributes dcmCopy) {
+		try {
+			DeidentifyImageService deidentifyImageService = ApplicationContextProvider
+				.bean(DeidentifyImageService.class);
+
+			Map<String, String> sensitiveData = SensitiveTagDefinition.extractSensitiveData(dcmCopy);
+
+			List<MaskBody> masks = deidentifyImageService.callDeidentifyImageApi(dcmCopy, sensitiveData);
+
+			if (masks.isEmpty()) {
+				return null;
+			}
+
+			// The API may return multiple mask entries, but we only need one MaskArea
+			// for the current image. We merge all rectangles from all returned masks
+			// into a single MaskArea.
+			List<Shape> allShapes = new ArrayList<>();
+			Color color = null;
+			for (MaskBody maskBody : masks) {
+				if (color == null && StringUtil.hasText(maskBody.getColor())) {
+					color = ActionTags.hexadecimal2Color(maskBody.getColor());
+				}
+				if (maskBody.getRectangles() != null) {
+					for (String rectStr : maskBody.getRectangles()) {
+						Rectangle rect = RectangleListConverter.stringToRectangle(rectStr);
+						if (rect != null) {
+							allShapes.add(rect);
+						}
+					}
+				}
+			}
+
+			if (allShapes.isEmpty()) {
+				return null;
+			}
+
+			log.debug("De-identification image API returned {} rectangle(s) to mask", allShapes.size());
+			return new MaskArea(allShapes, color);
+		}
+		catch (Exception e) {
+			log.warn("De-identification image API call failed — falling back to static mask: {}", e.getMessage());
+			return null;
 		}
 	}
 

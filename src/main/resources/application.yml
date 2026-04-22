@@ -92,3 +92,10 @@ conformance-report:
   idle-timeout-seconds: 300
   # Safety cap: a study trickling in for longer than this is flushed anyway
   max-study-lifetime-seconds: 14400
+
+# External de-identification image API
+# This API checks if sensitive patient data is burned into DICOM pixel data.
+karnak:
+  deidentify-image:
+    url: ${DEIDENTIFY_IMAGE_URL:http://localhost:8000}
+
