@@ -56,7 +56,6 @@ import org.karnak.backend.model.profiles.ActionTags;
 import org.karnak.backend.model.profiles.CleanPixelData;
 import org.karnak.backend.model.profiles.Defacing;
 import org.karnak.backend.model.profiles.ProfileItem;
-import org.karnak.backend.service.ApplicationContextProvider;
 import org.slf4j.MDC;
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
@@ -79,6 +78,8 @@ public class Profile {
 
 	private final Map<MaskStationCondition, MaskArea> maskMap;
 
+	private final DeidentifyImageService deidentifyImageService;
+
 	/**
 	 * Property key used to store additional {@link MaskArea} objects in the
 	 * {@link AttributeEditorContext#getProperties()} map. The main (first) mask is set
@@ -88,11 +89,27 @@ public class Profile {
 	 */
 	public static final String ADDITIONAL_MASK_AREAS_KEY = "additionalMaskAreas";
 
-	public Profile(ProfileEntity profileEntity) {
+	/**
+	 * @param profileEntity the profile configuration
+	 * @param deidentifyImageService the service that calls the external de-id image API;
+	 *   pass {@code null} to disable the API call
+	 */
+	public Profile(ProfileEntity profileEntity, DeidentifyImageService deidentifyImageService) {
 		this.maskMap = new HashMap<>();
 		this.pseudonym = new Pseudonym();
+		this.deidentifyImageService = deidentifyImageService;
 		this.profiles = createProfilesList(profileEntity);
 		this.tagProfiles = profiles.stream().filter(p -> !(p instanceof CleanPixelData)).toList();
+	}
+
+	/**
+	 * Convenience constructor for tests and legacy callers that do not need the
+	 * de-identification image API.
+	 *
+	 * @param profileEntity the profile configuration
+	 */
+	public Profile(ProfileEntity profileEntity) {
+		this(profileEntity, null);
 	}
 
 	public MaskArea getMask(MaskStationCondition key) {
@@ -289,10 +306,10 @@ public class Profile {
 	 * @return a list of {@link MaskArea}, possibly empty but never {@code null}
 	 */
 	private List<MaskArea> fetchMasksFromDeidentifyImageApi(Attributes dcmCopy) {
+		if (deidentifyImageService == null) {
+			return Collections.emptyList();
+		}
 		try {
-			DeidentifyImageService deidentifyImageService = ApplicationContextProvider
-				.bean(DeidentifyImageService.class);
-
 			Map<String, String> sensitiveData = SensitiveTagDefinition.extractSensitiveData(dcmCopy);
 
 			List<MaskBody> masks = deidentifyImageService.callDeidentifyImageApi(dcmCopy, sensitiveData);

@@ -46,6 +46,7 @@ import org.karnak.backend.model.editor.StreamRegistryEditor;
 import org.karnak.backend.model.editor.TagMorphingEditor;
 import org.karnak.backend.model.event.NodeEvent;
 import org.karnak.backend.service.kheops.SwitchingAlbum;
+import org.karnak.backend.service.profilepipe.DeidentifyImageService;
 import org.karnak.backend.util.SystemPropertyUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -77,6 +78,8 @@ public class GatewaySetUpService {
 	private final DestinationRepo destinationRepo;
 
 	private final Map<ForwardDicomNode, List<ForwardDestination>> destMap;
+
+	private final DeidentifyImageService deidentifyImageService;
 
 	@Value("${forward.prenegotiate-sop-classes:true}")
 	private boolean preNegotiateSopClasses;
@@ -113,10 +116,12 @@ public class GatewaySetUpService {
 
 	@Autowired
 	public GatewaySetUpService(final ForwardNodeRepo forwardNodeRepo, final VersionRepo versionRepo,
-			final DestinationRepo destinationRepo) throws Exception {
+			final DestinationRepo destinationRepo,
+			final DeidentifyImageService deidentifyImageService) throws Exception {
 		this.forwardNodeRepo = forwardNodeRepo;
 		this.versionRepo = versionRepo;
 		this.destinationRepo = destinationRepo;
+		this.deidentifyImageService = deidentifyImageService;
 		this.destMap = new HashMap<>();
 
 		listenerAET = SystemPropertyUtil.retrieveSystemProperty("DICOM_LISTENER_AET", "KARNAK-GATEWAY");
@@ -347,7 +352,7 @@ public class GatewaySetUpService {
 		if (dstNode.getDeIdentificationProjectEntity() != null
 				&& dstNode.getDeIdentificationProjectEntity().getProfileEntity() != null
 				&& dstNode.isDesidentification()) {
-			editors.add(new DeIdentifyEditor(dstNode));
+			editors.add(new DeIdentifyEditor(dstNode, deidentifyImageService));
 		}
 	}
 
@@ -359,7 +364,7 @@ public class GatewaySetUpService {
 		if (dstNode.getTagMorphingProjectEntity() != null
 				&& dstNode.getTagMorphingProjectEntity().getProfileEntity() != null
 				&& dstNode.isActivateTagMorphing()) {
-			editors.add(new TagMorphingEditor(dstNode));
+			editors.add(new TagMorphingEditor(dstNode, deidentifyImageService));
 		}
 	}
 
