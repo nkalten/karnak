@@ -99,7 +99,7 @@ public class DeidentifyImageService {
 	/**
 	 * @param apiBaseUrl the base URL of the de-identification image API
 	 */
-	public DeidentifyImageService(@Value("${karnak.deidentify-image.url:http://localhost:8000}") String apiBaseUrl) {
+	public DeidentifyImageService(@Value("${ocr.url:http://localhost:8000}") String apiBaseUrl) {
 		this.apiBaseUrl = apiBaseUrl;
 		this.objectMapper = new ObjectMapper();
 
