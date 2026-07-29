@@ -9,16 +9,13 @@
  */
 package org.karnak.profilepipe.option.datemanager;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.when;
-
 import java.util.ArrayList;
 import java.util.List;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +32,8 @@ import org.karnak.backend.service.profilepipe.Profile;
 import org.karnak.backend.util.ShiftApiDate;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.when;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.TestPropertySource;
@@ -98,7 +97,7 @@ class ShiftApiDateTest {
 		url.setArgumentKey("url");
 		url.setArgumentValue(TEST_URL);
 		ArgumentEntity daysPath = new ArgumentEntity();
-		daysPath.setArgumentKey("days_path");
+		daysPath.setArgumentKey("daysPath");
 		daysPath.setArgumentValue("/value");
 		ArgumentEntity authConfig = new ArgumentEntity();
 		authConfig.setArgumentKey("authConfig");
@@ -118,7 +117,7 @@ class ShiftApiDateTest {
 	void shiftStudyTimeWithSecondsFromApi() {
 		addDefaultArguments();
 		ArgumentEntity secondsPath = new ArgumentEntity();
-		secondsPath.setArgumentKey("seconds_path");
+		secondsPath.setArgumentKey("secondsPath");
 		secondsPath.setArgumentValue("/seconds");
 		argumentEntities.get(0).setArgumentValue(TEST_URL + "/seconds");
 		argumentEntities.add(secondsPath);
@@ -145,7 +144,7 @@ class ShiftApiDateTest {
 		url.setArgumentKey("url");
 		url.setArgumentValue(TEST_URL_TEMPLATE);
 		ArgumentEntity daysPath = new ArgumentEntity();
-		daysPath.setArgumentKey("days_path");
+		daysPath.setArgumentKey("daysPath");
 		daysPath.setArgumentValue("value");
 		ArgumentEntity authConfig = new ArgumentEntity();
 		authConfig.setArgumentKey("authConfig");
@@ -181,7 +180,7 @@ class ShiftApiDateTest {
 	@Test
 	void verifyShiftArgumentsMissingUrl() {
 		ArgumentEntity daysPath = new ArgumentEntity();
-		daysPath.setArgumentKey("days_path");
+		daysPath.setArgumentKey("daysPath");
 		daysPath.setArgumentValue("/value");
 		assertThrows(IllegalArgumentException.class, () -> ShiftApiDate.verifyShiftArguments(List.of(daysPath)));
 	}
@@ -205,7 +204,7 @@ class ShiftApiDateTest {
 		ProfileElementEntity profileElementEntity = new ProfileElementEntity("Shift dates from API", "action.on.dates",
 				null, null, "shift_from_api", 0, profileEntity);
 		profileElementEntity.addArgument(new ArgumentEntity("url", TEST_URL_TEMPLATE, profileElementEntity));
-		profileElementEntity.addArgument(new ArgumentEntity("days_path", "/value", profileElementEntity));
+		profileElementEntity.addArgument(new ArgumentEntity("daysPath", "/value", profileElementEntity));
 		profileElementEntity.addArgument(new ArgumentEntity("authConfig", AUTH_CONFIG, profileElementEntity));
 		profileElementEntity.addIncludedTag(new IncludedTagEntity("(0008,0020)", profileElementEntity));
 		profileElementEntity.addIncludedTag(new IncludedTagEntity("(0008,0021)", profileElementEntity));

@@ -9,9 +9,6 @@
  */
 package org.karnak.backend.util;
 
-import static org.karnak.backend.service.EndpointService.evaluateStringWithExpression;
-import static org.karnak.backend.service.EndpointService.validateStringWithExpression;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +22,8 @@ import org.karnak.backend.exception.EndpointException;
 import org.karnak.backend.model.profilepipe.HMAC;
 import org.karnak.backend.service.ApplicationContextProvider;
 import org.karnak.backend.service.EndpointService;
+import static org.karnak.backend.service.EndpointService.evaluateStringWithExpression;
+import static org.karnak.backend.service.EndpointService.validateStringWithExpression;
 import org.springframework.web.client.HttpClientErrorException;
 import org.weasis.dicom.param.AttributeEditorContext;
 
@@ -56,7 +55,7 @@ public class ShiftApiDate {
 					throw new IllegalArgumentException(String.format("Expression is not valid: \n\r%s", error));
 				}
 			}
-			else if ("days_path".equals(key)) {
+            else if ("daysPath".equals(key)) {
 				daysPathProvided = true;
 			}
 			else if ("method".equals(key)) {
@@ -81,7 +80,7 @@ public class ShiftApiDate {
 			throw new IllegalArgumentException("Cannot build the option ShiftApiDate: url argument is mandatory");
 		}
 		if (!daysPathProvided) {
-			throw new IllegalArgumentException("Cannot build the option ShiftApiDate: days_path argument is mandatory");
+            throw new IllegalArgumentException("Cannot build the option ShiftApiDate: daysPath argument is mandatory");
 		}
 		if (isPost && !bodyProvided) {
 			throw new IllegalArgumentException(
@@ -103,8 +102,8 @@ public class ShiftApiDate {
 		for (ArgumentEntity ae : argumentEntities) {
 			switch (ae.getArgumentKey()) {
 				case "url" -> url = ae.getArgumentValue();
-				case "days_path" -> daysPath = normalizeJsonPath(ae.getArgumentValue());
-				case "seconds_path" -> secondsPath = normalizeJsonPath(ae.getArgumentValue());
+                case "daysPath" -> daysPath = normalizeJsonPath(ae.getArgumentValue());
+                case "secondsPath" -> secondsPath = normalizeJsonPath(ae.getArgumentValue());
 				case "method" -> method = ae.getArgumentValue();
 				case "body" -> body = ae.getArgumentValue();
 				case "authConfig" -> authConfig = ae.getArgumentValue();
@@ -119,10 +118,10 @@ public class ShiftApiDate {
 		}
 
 		String response = fetchResponse(authConfig, url, method, body);
-		int shiftDays = parseShiftValue(response, daysPath, "days_path");
+        int shiftDays = parseShiftValue(response, daysPath, "daysPath");
 		int shiftSeconds = 0;
 		if (secondsPath != null) {
-			shiftSeconds = parseShiftValue(response, secondsPath, "seconds_path");
+            shiftSeconds = parseShiftValue(response, secondsPath, "secondsPath");
 		}
 
 		String dcmElValue = dcmCopy.getString(tag);
