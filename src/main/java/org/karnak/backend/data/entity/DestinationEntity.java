@@ -9,6 +9,15 @@
  */
 package org.karnak.backend.data.entity;
 
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import jakarta.persistence.CascadeType;
@@ -29,14 +38,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.io.Serial;
-import java.io.Serializable;
-import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.validator.group.GroupSequenceProvider;
@@ -136,6 +137,11 @@ public class DestinationEntity implements Serializable {
 	// enhanced multiframe functional groups, …) instead of only the first one.
 	// Off by default: deeper recursion enlarges the snapshot kept in memory.
 	private boolean deepSequenceValidation;
+
+	// When true, each forwarded image is OCR-checked (via the de-identification image
+	// service) for identifying data still burned into the pixel data; the detected
+	// tags are listed in the conformance report. Off by default.
+	private boolean imageIdentityCheck;
 
 	// When true, this destination is a virtual "report-only" destination: the
 	// de-identified / tag-morphed dataset is validated and a conformance report is
@@ -302,7 +308,7 @@ public class DestinationEntity implements Serializable {
 
 	@JsonGetter("forwardNode")
 	public ForwardNodeEntity getForwardNodeEntity() {
-		return forwardNodeEntity;
+		return this.forwardNodeEntity;
 	}
 
 	@JsonSetter("forwardNode")
@@ -311,12 +317,12 @@ public class DestinationEntity implements Serializable {
 	}
 
 	public Set<String> retrieveSOPClassUIDFiltersName() {
-		return SOPClassUIDEntityFilters.stream().map(SOPClassUIDEntity::getName).collect(Collectors.toSet());
+		return this.SOPClassUIDEntityFilters.stream().map(SOPClassUIDEntity::getName).collect(Collectors.toSet());
 	}
 
 	@JsonGetter("kheopsAlbums")
 	public List<KheopsAlbumsEntity> getKheopsAlbumEntities() {
-		return kheopsAlbumEntities;
+		return this.kheopsAlbumEntities;
 	}
 
 	@JsonSetter("kheopsAlbums")
@@ -326,7 +332,7 @@ public class DestinationEntity implements Serializable {
 
 	@JsonGetter("deIdentificationProject")
 	public ProjectEntity getDeIdentificationProjectEntity() {
-		return deIdentificationProjectEntity;
+		return this.deIdentificationProjectEntity;
 	}
 
 	@JsonSetter("deIdentificationProject")
@@ -336,7 +342,7 @@ public class DestinationEntity implements Serializable {
 
 	@JsonGetter("tagMorphingProject")
 	public ProjectEntity getTagMorphingProjectEntity() {
-		return tagMorphingProjectEntity;
+		return this.tagMorphingProjectEntity;
 	}
 
 	@JsonSetter("tagMorphingProject")
@@ -350,17 +356,17 @@ public class DestinationEntity implements Serializable {
 	 * @return true if this object matches with the filter as text; false otherwise.
 	 */
 	public boolean matchesFilter(String filterText) {
-		return contains(description, filterText) //
-				|| contains(notify, filterText) //
-				|| contains(notifyObjectErrorPrefix, filterText) //
-				|| contains(notifyObjectRejectionPrefix, filterText) //
-				|| contains(notifyObjectPattern, filterText) //
-				|| contains(notifyObjectValues, filterText) //
-				|| contains(aeTitle, filterText) //
-				|| contains(hostname, filterText) //
-				|| equals(port, filterText) //
-				|| contains(url, filterText) //
-				|| contains(headers, filterText);
+		return this.contains(this.description, filterText) //
+				|| this.contains(this.notify, filterText) //
+				|| this.contains(this.notifyObjectErrorPrefix, filterText) //
+				|| this.contains(this.notifyObjectRejectionPrefix, filterText) //
+				|| this.contains(this.notifyObjectPattern, filterText) //
+				|| this.contains(this.notifyObjectValues, filterText) //
+				|| this.contains(this.aeTitle, filterText) //
+				|| this.contains(this.hostname, filterText) //
+				|| this.equals(this.port, filterText) //
+				|| this.contains(this.url, filterText) //
+				|| this.contains(this.headers, filterText);
 	}
 
 	private boolean contains(String value, String filterText) {
@@ -373,36 +379,36 @@ public class DestinationEntity implements Serializable {
 
 	@Override
 	public String toString() {
-		if (destinationType != null) {
-			switch (destinationType) {
+		if (this.destinationType != null) {
+			switch (this.destinationType) {
 				case dicom:
-					return "Destination [id=" + id + ", description=" + description + ", type=" + destinationType
-							+ ", notify=" + notify + ", notifyObjectErrorPrefix=" + notifyObjectErrorPrefix
-							+ ", notifyObjectRejectionPrefix=" + notifyObjectRejectionPrefix + ", notifyObjectPattern="
-							+ notifyObjectPattern + ", notifyObjectValues=" + notifyObjectValues + ", notifyInterval="
-							+ notifyInterval + ", aeTitle=" + aeTitle + ", hostname=" + hostname + ", port=" + port
-							+ ", useaetdest=" + useaetdest + "]";
+					return "Destination [id=" + this.id + ", description=" + this.description + ", type=" + this.destinationType
+							+ ", notify=" + this.notify + ", notifyObjectErrorPrefix=" + this.notifyObjectErrorPrefix
+							+ ", notifyObjectRejectionPrefix=" + this.notifyObjectRejectionPrefix + ", notifyObjectPattern="
+							+ this.notifyObjectPattern + ", notifyObjectValues=" + this.notifyObjectValues + ", notifyInterval="
+							+ this.notifyInterval + ", aeTitle=" + this.aeTitle + ", hostname=" + this.hostname + ", port=" + this.port
+							+ ", useaetdest=" + this.useaetdest + "]";
 				case stow:
-					return "Destination [id=" + id + ", description=" + description + ", type=" + destinationType
-							+ ", notify=" + notify + ", notifyObjectErrorPrefix=" + notifyObjectErrorPrefix
-							+ ", notifyObjectRejectionPrefix=" + notifyObjectRejectionPrefix + ", notifyObjectPattern="
-							+ notifyObjectPattern + ", notifyObjectValues=" + notifyObjectValues + ", notifyInterval="
-							+ notifyInterval + ", url=" + url + ", headers=" + headers + "]";
+					return "Destination [id=" + this.id + ", description=" + this.description + ", type=" + this.destinationType
+							+ ", notify=" + this.notify + ", notifyObjectErrorPrefix=" + this.notifyObjectErrorPrefix
+							+ ", notifyObjectRejectionPrefix=" + this.notifyObjectRejectionPrefix + ", notifyObjectPattern="
+							+ this.notifyObjectPattern + ", notifyObjectValues=" + this.notifyObjectValues + ", notifyInterval="
+							+ this.notifyInterval + ", url=" + this.url + ", headers=" + this.headers + "]";
 			}
 		}
-		return "Destination [id=" + id + ", description=" + description + ", type=" + destinationType + ", notify="
-				+ notify + ", notifyObjectErrorPrefix=" + notifyObjectErrorPrefix + ", notifyObjectRejectionPrefix="
-				+ notifyObjectRejectionPrefix + ", notifyObjectPattern=" + notifyObjectPattern + ", notifyObjectValues="
-				+ notifyObjectValues + ", notifyInterval=" + notifyInterval + "]";
+		return "Destination [id=" + this.id + ", description=" + this.description + ", type=" + this.destinationType + ", notify="
+				+ this.notify + ", notifyObjectErrorPrefix=" + this.notifyObjectErrorPrefix + ", notifyObjectRejectionPrefix="
+				+ this.notifyObjectRejectionPrefix + ", notifyObjectPattern=" + this.notifyObjectPattern + ", notifyObjectValues="
+				+ this.notifyObjectValues + ", notifyInterval=" + this.notifyInterval + "]";
 	}
 
 	public String retrieveStringReference() {
-		if (destinationType == null) {
+		if (this.destinationType == null) {
 			return "Type of destination is unknown";
 		}
-		return switch (destinationType) {
-			case dicom -> getAeTitle();
-			case stow -> getUrl() + ":" + getPort();
+		return switch (this.destinationType) {
+			case dicom -> this.getAeTitle();
+			case stow -> this.getUrl() + ":" + this.getPort();
 		};
 	}
 
@@ -411,20 +417,20 @@ public class DestinationEntity implements Serializable {
 		if (this == o) {
 			return true;
 		}
-		if (o == null || getClass() != o.getClass()) {
+		if (o == null || this.getClass() != o.getClass()) {
 			return false;
 		}
 		DestinationEntity that = (DestinationEntity) o;
-		return Objects.equals(id, that.id);
+		return Objects.equals(this.id, that.id);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(id);
+		return Objects.hash(this.id);
 	}
 
 	public String toStringDicomNotificationDestination() {
-		return "Host=" + getHostname() + " AET=" + getAeTitle() + " Port=" + getPort();
+		return "Host=" + this.getHostname() + " AET=" + this.getAeTitle() + " Port=" + this.getPort();
 	}
 
 }

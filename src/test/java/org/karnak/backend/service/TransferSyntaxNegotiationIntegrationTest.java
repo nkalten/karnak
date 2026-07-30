@@ -47,25 +47,25 @@ class TransferSyntaxNegotiationIntegrationTest extends GatewayItTestSupport {
 
 	@BeforeEach
 	void setUp() throws Exception {
-		scp = startScp();
-		fwdNode = new ForwardDicomNode("SOURCE-IT");
-		forwardService = new ForwardService(mock(ApplicationEventPublisher.class));
+		this.scp = this.startScp();
+		this.fwdNode = new ForwardDicomNode("SOURCE-IT");
+		this.forwardService = new ForwardService(mock(ApplicationEventPublisher.class), null);
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = { UID.ExplicitVRLittleEndian, UID.ImplicitVRLittleEndian })
 	void forwards_and_adapts_uncompressed_transfer_syntaxes(String inputTs) throws Exception {
-		DicomForwardDestination dest = dicomDestination(fwdNode, scp, 1);
+		DicomForwardDestination dest = this.dicomDestination(this.fwdNode, this.scp, 1);
 		String iuid = "1.2.826.0.1.3680043.8.498.1";
 		try {
-			Params p = params(iuid, CUID_SC, inputTs, serialize(iuid, CUID_SC, inputTs));
-			forwardService.storeMultipleDestination(fwdNode, List.of(dest), p);
+			Params p = this.params(iuid, CUID_SC, inputTs, serialize(iuid, CUID_SC, inputTs));
+			this.forwardService.storeMultipleDestination(this.fwdNode, List.of(dest), p);
 		}
 		finally {
 			dest.stop();
 		}
 
-		assertEquals(Set.of(iuid), receivedSopInstanceUids(scp.storageDir()));
+		assertEquals(Set.of(iuid), receivedSopInstanceUids(this.scp.storageDir()));
 		// Each uncompressed input forwards and is stored uncompressed (no codec
 		// corruption).
 		// The exact negotiated syntax (Explicit vs Implicit VR LE) depends on
@@ -73,14 +73,14 @@ class TransferSyntaxNegotiationIntegrationTest extends GatewayItTestSupport {
 		// context negotiation order, so the deterministic output-TS mapping is asserted
 		// in the
 		// transcoding tests where an explicit output transfer syntax is configured.
-		String storedTs = receivedTransferSyntaxes(scp.storageDir()).get(iuid);
+		String storedTs = receivedTransferSyntaxes(this.scp.storageDir()).get(iuid);
 		assertTrue(UID.ExplicitVRLittleEndian.equals(storedTs) || UID.ImplicitVRLittleEndian.equals(storedTs),
 				"expected an uncompressed little-endian syntax but was " + storedTs);
 	}
 
 	@Test
 	void negotiates_several_sop_classes_over_a_pooled_destination() throws Exception {
-		DicomForwardDestination dest = dicomDestination(fwdNode, scp, 2);
+		DicomForwardDestination dest = this.dicomDestination(this.fwdNode, this.scp, 2);
 		List<String> cuids = List.of(UID.SecondaryCaptureImageStorage, UID.CTImageStorage, UID.MRImageStorage,
 				UID.ComputedRadiographyImageStorage);
 
@@ -90,15 +90,15 @@ class TransferSyntaxNegotiationIntegrationTest extends GatewayItTestSupport {
 			for (String cuid : cuids) {
 				String iuid = "1.2.826.0.1.3680043.8.498." + (i++);
 				sent.add(iuid);
-				Params p = params(iuid, cuid, TS_EXPLICIT, serialize(iuid, cuid, TS_EXPLICIT));
-				forwardService.storeMultipleDestination(fwdNode, List.of(dest), p);
+				Params p = this.params(iuid, cuid, TS_EXPLICIT, serialize(iuid, cuid, TS_EXPLICIT));
+				this.forwardService.storeMultipleDestination(this.fwdNode, List.of(dest), p);
 			}
 		}
 		finally {
 			dest.stop();
 		}
 
-		assertEquals(sent, receivedSopInstanceUids(scp.storageDir()));
+		assertEquals(sent, receivedSopInstanceUids(this.scp.storageDir()));
 	}
 
 }

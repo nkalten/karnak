@@ -9,15 +9,14 @@
  */
 package org.karnak.backend.service.profilepipe;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.BulkData;
@@ -27,7 +26,7 @@ import org.dcm4che3.data.VR;
 import org.jspecify.annotations.Nullable;
 import org.karnak.backend.model.profilebody.MaskBody;
 import org.karnak.backend.model.profilepipe.DeidentifyImageResponse;
-
+import org.karnak.backend.model.profilepipe.ReportingResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
@@ -193,6 +192,103 @@ public class DeidentifyImageService {
 		return this.extractMasksFromJson(jsonResponse, dcmAttributes.getString(Tag.SOPInstanceUID));
 	}
 
+	/**
+	 * Sends the received image and its original identifying values to the external
+	 * {@code /reporting} endpoint and returns the names of the DICOM tags whose value was
+	 * found burned into the pixel data.
+	 * @param metadata the (metadata-only) DICOM attributes describing the image geometry
+	 * @param imageBytes the encoded pixel data
+	 * @param sensitiveData a map of tag name to tag value for the identifying information
+	 * to look for
+	 * @param tsuid the transfer syntax the {@code imageBytes} are encoded with
+	 * @param sopInstanceUid the SOP Instance UID echoed back for concurrency safety
+	 * @throws DeidentifyImageException if there is a problem when calling the reporting
+	 * API
+	 * @return the detected identifying tag names, or an empty list when none were found
+	 */
+	public List<String> callReportingApi(Attributes metadata, byte[] imageBytes, Map<String, String> sensitiveData,
+			String tsuid, String sopInstanceUid) {
+		if (imageBytes == null || imageBytes.length == 0) {
+			log.warn("No pixel data to inspect - skipping reporting API call");
+			return Collections.emptyList();
+		}
+
+		String sensitiveDataJson;
+		try {
+			sensitiveDataJson = this.objectMapper.writeValueAsString(sensitiveData);
+		}
+		catch (JsonProcessingException ex) {
+			throw new DeidentifyImageException("Failed to serialize sensitive data to JSON for the reporting API", ex);
+		}
+
+		MultiValueMap<String, HttpEntity<?>> multipartBody = this.generateMultipartBody(metadata, imageBytes,
+				sensitiveDataJson, tsuid);
+
+		String jsonResponse;
+		try {
+			jsonResponse = this.restClient.post()
+				.uri("/reporting")
+				.contentType(MediaType.MULTIPART_FORM_DATA)
+				.body(multipartBody)
+				.accept(MediaType.parseMediaType("application/json; version=1"))
+				.retrieve()
+				.body(String.class);
+		}
+		catch (HttpClientErrorException ex) {
+			throw new DeidentifyImageException(
+					String.format("Client error %s from reporting API - check the request format: %s",
+							ex.getStatusCode(), ex.getMessage()),
+					ex);
+		}
+		catch (HttpServerErrorException ex) {
+			throw new DeidentifyImageException(
+					String.format("Server error %s from reporting API - service may be temporarily unavailable",
+							ex.getStatusCode()),
+					ex);
+		}
+		catch (ResourceAccessException ex) {
+			throw new DeidentifyImageException(
+					String.format("Cannot reach reporting API at %s - service is unavailable: %s", this.apiBaseUrl,
+							ex.getMessage()),
+					ex);
+		}
+		catch (Exception ex) {
+			throw new DeidentifyImageException("Unexpected error calling reporting API: " + ex.getMessage(), ex);
+		}
+
+		return this.extractDetectedTagsFromJson(jsonResponse, sopInstanceUid);
+	}
+
+	/**
+	 * Parses the JSON string returned by the {@code /reporting} endpoint and extracts the
+	 * {@code detected_tags} field.
+	 * @param jsonContent the raw JSON string returned by the API
+	 * @return the detected identifying tag names, or an empty list if none found
+	 */
+	List<String> extractDetectedTagsFromJson(String jsonContent, String expectedSopInstanceUID) {
+		if (jsonContent == null || jsonContent.isBlank()) {
+			log.debug("Empty JSON response from reporting API - no identifying data reported");
+			return Collections.emptyList();
+		}
+
+		ReportingResponse response;
+		try {
+			response = this.objectMapper.readValue(jsonContent, ReportingResponse.class);
+		}
+		catch (Exception ex) {
+			throw new DeidentifyImageException("Failed to parse JSON response from the reporting API", ex);
+		}
+
+		if (response.sopInstanceUid() != null && !response.sopInstanceUid().equals(expectedSopInstanceUID)) {
+			log.error(
+					"The SOP Instance UID in the reporting API response ({}) does not match the expected UID ({}) - ignoring detected tags",
+					response.sopInstanceUid(), expectedSopInstanceUID);
+			return Collections.emptyList();
+		}
+
+		return response.detectedTags() == null ? Collections.emptyList() : response.detectedTags();
+	}
+
 	MultiValueMap<String, HttpEntity<?>> generateMultipartBody(Attributes dcmAttributes, byte[] imageBytes,
 			String sensitiveDataJson, String tsuid) {
 		MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
@@ -292,7 +388,7 @@ public class DeidentifyImageService {
 	 * @param dcmAttributes the DICOM attributes containing pixel data
 	 * @return the pixel data as a byte array, or an empty array if extraction fails
 	 */
-	byte[] extractPixelDataBytes(Attributes dcmAttributes) {
+	public byte[] extractPixelDataBytes(Attributes dcmAttributes) {
 		if (dcmAttributes == null) {
 			log.error("The passed DCMAttributes is null !");
 			return EMPTY_BYTE_ARRAY;
@@ -300,7 +396,11 @@ public class DeidentifyImageService {
 
 		Object pixelData = dcmAttributes.getValue(Tag.PixelData);
 
-		if (pixelData instanceof BulkData bulkData) {
+		if (pixelData instanceof byte[] rawBytes) {
+			// Uncompressed pixel data read fully in memory.
+			return rawBytes;
+		}
+		else if (pixelData instanceof BulkData bulkData) {
 			// BulkData = uncompressed pixel data stored as raw bytes.
 			try {
 				return bulkData.toBytes(VR.OW, bulkData.bigEndian());

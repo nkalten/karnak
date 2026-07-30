@@ -9,20 +9,14 @@
  */
 package org.karnak.backend.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.mockito.Mockito.mock;
-
-import java.awt.Color;
-import java.awt.Rectangle;
-import java.awt.Shape;
+import java.awt.*;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
+
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.UID;
@@ -40,9 +34,15 @@ import org.karnak.backend.dicom.Defacer;
 import org.karnak.backend.dicom.DicomForwardDestination;
 import org.karnak.backend.dicom.ForwardDicomNode;
 import org.karnak.backend.dicom.Params;
-import org.springframework.context.ApplicationEventPublisher;
 import org.weasis.dicom.param.AttributeEditor;
 import org.weasis.opencv.natives.NativeLibrary;
+
+import org.springframework.context.ApplicationEventPublisher;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.mockito.Mockito.mock;
 
 /**
  * Image-processing forwarding over real associations: a pixel-bearing object is forwarded
@@ -74,13 +74,13 @@ class ImageProcessingForwardIntegrationTest extends GatewayItTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		fwdNode = new ForwardDicomNode("SOURCE-IT");
-		forwardService = new ForwardService(mock(ApplicationEventPublisher.class));
+		this.fwdNode = new ForwardDicomNode("SOURCE-IT");
+		this.forwardService = new ForwardService(mock(ApplicationEventPublisher.class), null);
 	}
 
 	@Test
 	void mask_blackens_the_configured_rectangle_and_leaves_the_rest_untouched() throws Exception {
-		Scp scp = startScp();
+		Scp scp = this.startScp();
 		int rows = 64;
 		int cols = 64;
 		byte[] pixels = filled(rows, cols, (byte) 200);
@@ -89,9 +89,9 @@ class ImageProcessingForwardIntegrationTest extends GatewayItTestSupport {
 
 		// Black out a 16x16 rectangle at (col=16, row=16).
 		Rectangle rect = new Rectangle(16, 16, 16, 16);
-		DicomForwardDestination dest = destination(scp, null, maskEditor(rect, Color.BLACK));
+		DicomForwardDestination dest = this.destination(scp, null, maskEditor(rect, Color.BLACK));
 		try {
-			forwardService.storeMultipleDestination(fwdNode, List.of(dest), params8bit(iuid, object));
+			this.forwardService.storeMultipleDestination(this.fwdNode, List.of(dest), this.params8bit(iuid, object));
 		}
 		finally {
 			dest.stop();
@@ -104,15 +104,15 @@ class ImageProcessingForwardIntegrationTest extends GatewayItTestSupport {
 
 	@Test
 	void transcode_rewrites_an_uncompressed_object_to_a_compressed_transfer_syntax() throws Exception {
-		Scp scp = startScp();
+		Scp scp = this.startScp();
 		int rows = 64;
 		int cols = 64;
 		String iuid = "1.2.826.0.1.3680043.8.498.2";
 		byte[] object = serialize8bit(iuid, CUID_SC, rows, cols, gradient(rows, cols));
 
-		DicomForwardDestination dest = destination(scp, UID.JPEGLosslessSV1, NOOP);
+		DicomForwardDestination dest = this.destination(scp, UID.JPEGLosslessSV1, NOOP);
 		try {
-			forwardService.storeMultipleDestination(fwdNode, List.of(dest), params8bit(iuid, object));
+			this.forwardService.storeMultipleDestination(this.fwdNode, List.of(dest), this.params8bit(iuid, object));
 		}
 		finally {
 			dest.stop();
@@ -131,17 +131,19 @@ class ImageProcessingForwardIntegrationTest extends GatewayItTestSupport {
 		// the stored pixels; it does not assess face-detection quality. Drop a real axial
 		// CT
 		// fixture in for that.
-		Scp defaced = startScp();
-		Scp untouched = startScp();
+		Scp defaced = this.startScp();
+		Scp untouched = this.startScp();
 		int size = 128;
 		String iuid = "1.2.826.0.1.3680043.8.498.3";
 		byte[] object = serializeAxialCt(iuid, size, syntheticHead(size));
 
-		DicomForwardDestination defacingDest = destination(defaced, null, defacingEditor());
-		DicomForwardDestination plainDest = destination(untouched, null, NOOP);
+		DicomForwardDestination defacingDest = this.destination(defaced, null, defacingEditor());
+		DicomForwardDestination plainDest = this.destination(untouched, null, NOOP);
 		try {
-			forwardService.storeMultipleDestination(fwdNode, List.of(defacingDest), params(iuid, CUID_CT, object));
-			forwardService.storeMultipleDestination(fwdNode, List.of(plainDest), params(iuid, CUID_CT, object));
+			this.forwardService.storeMultipleDestination(this.fwdNode, List.of(defacingDest),
+					this.params(iuid, CUID_CT, object));
+			this.forwardService.storeMultipleDestination(this.fwdNode, List.of(plainDest),
+					this.params(iuid, CUID_CT, object));
 		}
 		finally {
 			defacingDest.stop();
@@ -172,12 +174,12 @@ class ImageProcessingForwardIntegrationTest extends GatewayItTestSupport {
 	// ------------------------------------------------------------
 
 	private DicomForwardDestination destination(Scp scp, String outputTs, AttributeEditor editor) throws IOException {
-		return new DicomForwardDestination(scp.port() + 0L, advancedParams(), fwdNode, scp.node(), false, null,
+		return new DicomForwardDestination((long) scp.port(), advancedParams(), this.fwdNode, scp.node(), false, null,
 				List.of(editor), outputTs, true, 1);
 	}
 
 	private Params params8bit(String iuid, byte[] object) {
-		return params(iuid, CUID_SC, object);
+		return this.params(iuid, CUID_SC, object);
 	}
 
 	private Params params(String iuid, String cuid, byte[] object) {

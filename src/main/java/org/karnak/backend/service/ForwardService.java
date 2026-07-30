@@ -55,8 +55,11 @@ import org.karnak.backend.model.event.ConformanceCollectEvent;
 import org.karnak.backend.model.event.TransferMonitoringEvent;
 import org.karnak.backend.model.image.TransformedPlanarImage;
 import org.karnak.backend.model.monitoring.MonitoringEntry;
+import org.karnak.backend.model.profilepipe.SensitiveTagDefinition;
+import org.karnak.backend.model.validation.ImageIdentityCheckInput;
 import org.karnak.backend.model.validation.InstanceConformanceData;
 import org.karnak.backend.model.validation.MetadataSnapshot;
+import org.karnak.backend.service.profilepipe.DeidentifyImageService;
 import org.karnak.backend.service.profilepipe.Profile;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -84,6 +87,8 @@ public class ForwardService {
 
 	private final ApplicationEventPublisher applicationEventPublisher;
 
+	private final DeidentifyImageService deidentifyImageService;
+
 	@Value("${forward.parallel-fanout:true}")
 	private boolean parallelFanout;
 
@@ -99,8 +104,10 @@ public class ForwardService {
 	private ExecutorService fanoutExecutor;
 
 	@Autowired
-	public ForwardService(final ApplicationEventPublisher applicationEventPublisher) {
+	public ForwardService(final ApplicationEventPublisher applicationEventPublisher,
+			final DeidentifyImageService deidentifyImageService) {
 		this.applicationEventPublisher = applicationEventPublisher;
+		this.deidentifyImageService = deidentifyImageService;
 	}
 
 	@PostConstruct
@@ -375,8 +382,9 @@ public class ForwardService {
 			launchCStore(p, streamSCU, dataWriter, cuid, iuid, syntax, transformedPlanarImage);
 
 			progressNotify(destination, p.iuid(), p.cuid(), false, streamSCU);
-			monitor(sourceNode, destination, attributesOriginal, attributesToSend, true, false, null,
-					attributesOriginal.getString(Tag.Modality), p.cuid(), syntax.getSuitable());
+			monitor(sourceNode, destination, attributesOriginal, attributesToSend, true, false, false, null,
+					attributesOriginal.getString(Tag.Modality), p.cuid(), syntax.getSuitable(),
+					buildImageIdentityCheckInput(destination, attributesOriginal, p.tsuid()));
 		}
 		catch (AbortException e) {
 			progressNotify(destination, p.iuid(), p.cuid(), true, streamSCU);
@@ -542,8 +550,9 @@ public class ForwardService {
 			launchCStore(p, streamSCU, dataWriter, cuid, iuid, syntax, transformedPlanarImage);
 
 			progressNotify(destination, p.iuid(), p.cuid(), false, streamSCU);
-			monitor(fwdNode, destination, attributesOriginal, attributesToSend, true, false, null,
-					attributesOriginal.getString(Tag.Modality), p.cuid(), syntax.getSuitable());
+			monitor(fwdNode, destination, attributesOriginal, attributesToSend, true, false, false, null,
+					attributesOriginal.getString(Tag.Modality), p.cuid(), syntax.getSuitable(),
+					buildImageIdentityCheckInput(destination, attributesOriginal, p.tsuid()));
 		}
 		catch (AbortException e) {
 			progressNotify(destination, p.iuid(), p.cuid(), true, streamSCU);
@@ -625,8 +634,9 @@ public class ForwardService {
 				}
 			}
 			progressNotify(destination, p.iuid(), p.cuid(), false, 0);
-			monitor(fwdNode, destination, attributesOriginal, attributesToSend, true, false, null,
-					attributesOriginal.getString(Tag.Modality), p.cuid(), syntax.getSuitable());
+			monitor(fwdNode, destination, attributesOriginal, attributesToSend, true, false, false, null,
+					attributesOriginal.getString(Tag.Modality), p.cuid(), syntax.getSuitable(),
+					buildImageIdentityCheckInput(destination, attributesOriginal, p.tsuid()));
 		}
 		catch (AbortException e) {
 			progressNotify(destination, p.iuid(), p.cuid(), true, 0);
@@ -702,8 +712,9 @@ public class ForwardService {
 				}
 			}
 			progressNotify(destination, p.iuid(), p.cuid(), false, 0);
-			monitor(fwdNode, destination, attributesOriginal, attributesToSend, true, false, null,
-					attributesOriginal.getString(Tag.Modality), p.cuid(), syntax.getSuitable());
+			monitor(fwdNode, destination, attributesOriginal, attributesToSend, true, false, false, null,
+					attributesOriginal.getString(Tag.Modality), p.cuid(), syntax.getSuitable(),
+					buildImageIdentityCheckInput(destination, attributesOriginal, p.tsuid()));
 		}
 		catch (HttpException httpException) {
 			if (httpException.getStatusCode() != 409) {
@@ -772,8 +783,9 @@ public class ForwardService {
 			abortIfRequested(context, p, true, "Virtual destination abort: ");
 			// No network send: the dataset is routed to devnull.
 			progressNotify(destination, p.iuid(), p.cuid(), false, 0);
-			monitor(fwdNode, destination, attributesOriginal, attributesToSend, true, false, null,
-					attributesOriginal.getString(Tag.Modality), p.cuid(), p.tsuid());
+			monitor(fwdNode, destination, attributesOriginal, attributesToSend, true, false, false, null,
+					attributesOriginal.getString(Tag.Modality), p.cuid(), p.tsuid(),
+					buildImageIdentityCheckInput(destination, attributesOriginal, p.tsuid()));
 		}
 		catch (AbortException e) {
 			progressNotify(destination, p.iuid(), p.cuid(), true, 0);
@@ -959,6 +971,13 @@ public class ForwardService {
 	private void monitor(ForwardDicomNode sourceNode, ForwardDestination destination, Attributes attributesOriginal,
 			Attributes attributesToSend, boolean sent, boolean error, boolean duplicate, String reason, String modality,
 			String sopClassUid, String tsuidSent) {
+		monitor(sourceNode, destination, attributesOriginal, attributesToSend, sent, error, duplicate, reason, modality,
+				sopClassUid, tsuidSent, null);
+	}
+
+	private void monitor(ForwardDicomNode sourceNode, ForwardDestination destination, Attributes attributesOriginal,
+			Attributes attributesToSend, boolean sent, boolean error, boolean duplicate, String reason, String modality,
+			String sopClassUid, String tsuidSent, ImageIdentityCheckInput imageIdentityCheckInput) {
 		applicationEventPublisher
 			.publishEvent(new TransferMonitoringEvent(MonitoringEntry.of(sourceNode.getId(), destination.getId(),
 					attributesOriginal, attributesToSend, sent, error, duplicate, reason, modality, sopClassUid)));
@@ -977,16 +996,37 @@ public class ForwardService {
 				boolean deep = destination.isDeepSequenceValidation();
 				int snapshotDepth = deep ? conformanceMaxSequenceDepth : MetadataSnapshot.DEFAULT_MAX_SEQUENCE_DEPTH;
 				MetadataSnapshot snapshot = MetadataSnapshot.of(attributesToSend, snapshotDepth);
-				applicationEventPublisher
-					.publishEvent(new ConformanceCollectEvent(InstanceConformanceData.of(sourceNode.getId(),
-							destination.getId(), sourceNode.getAet(), tsuidSent, sent, reason,
-							destination.isCheckValueConformity(), deep, destination.isDeidentified(), snapshot)));
+				applicationEventPublisher.publishEvent(
+						new ConformanceCollectEvent(InstanceConformanceData.of(sourceNode.getId(), destination.getId(),
+								sourceNode.getAet(), tsuidSent, sent, reason, destination.isCheckValueConformity(),
+								deep, destination.isDeidentified(), snapshot, imageIdentityCheckInput)));
 			}
 			catch (RuntimeException e) {
 				log.error("Cannot build conformance snapshot for instance {}: {}",
 						attributesToSend.getString(Tag.SOPInstanceUID), e.getMessage());
 			}
 		}
+	}
+
+	/**
+	 * Captures, on the forwarding thread, the encoded pixel data and the original
+	 * identifying values so the conformance report pipeline can later query the
+	 * de-identification image API for burned-in identity. The pixel bytes must be read
+	 * here because their bulk-data temp files are cleaned right after the transfer.
+	 * Returns {@code null} when the check is disabled or the instance carries no readable
+	 * pixel data.
+	 */
+	private ImageIdentityCheckInput buildImageIdentityCheckInput(ForwardDestination destination,
+			Attributes attributesOriginal, String originalTsuid) {
+		if (!destination.isImageIdentityCheck()) {
+			return null;
+		}
+		byte[] imageBytes = deidentifyImageService.extractPixelDataBytes(attributesOriginal);
+		if (imageBytes.length == 0) {
+			return null;
+		}
+		return new ImageIdentityCheckInput(imageBytes, SensitiveTagDefinition.extractSensitiveData(attributesOriginal),
+				originalTsuid);
 	}
 
 }
