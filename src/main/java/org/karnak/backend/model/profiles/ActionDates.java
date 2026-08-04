@@ -77,14 +77,14 @@ public class ActionDates extends AbstractProfileItem {
 				return null;
 			}
 			try {
-				String dummyValue = applyOption(dcmCopy, tag, hmac);
+				String dummyValue = applyOption(dcm, tag, hmac);
 				if (dummyValue != null) {
 					actionByDefault.setDummyValue(dummyValue);
 					return actionByDefault;
 				}
 			}
 			catch (DateTimeException dateTimeException) {
-				String dcmElValue = dcmCopy.getString(tag);
+				String dcmElValue = dcm.getString(tag);
 				log.warn(String.format("Invalid date %s, the most strictest action will be choose between X/Z/D",
 						dcmElValue), dateTimeException);
 				return new MultipleActions("X/Z/D");
@@ -93,13 +93,13 @@ public class ActionDates extends AbstractProfileItem {
 		return null;
 	}
 
-	private @Nullable String applyOption(Attributes dcmCopy, int tag, HMAC hmac) throws DateTimeException {
+	private @Nullable String applyOption(Attributes dcm, int tag, HMAC hmac) throws DateTimeException {
 		return switch (option) {
-			case "shift" -> ShiftDate.shift(dcmCopy, tag, argumentEntities);
-			case "shift_range" -> ShiftRangeDate.shift(dcmCopy, tag, argumentEntities, hmac);
-			case "shift_by_tag" -> ShiftByTagDate.shift(dcmCopy, tag, argumentEntities, hmac);
-			case "shift_from_api" -> ShiftApiDate.shift(dcmCopy, tag, argumentEntities, hmac);
-			case "date_format" -> DateFormat.format(dcmCopy, tag, argumentEntities);
+			case "shift" -> ShiftDate.shift(dcm, tag, argumentEntities);
+			case "shift_range" -> ShiftRangeDate.shift(dcm, tag, argumentEntities, hmac);
+			case "shift_by_tag" -> ShiftByTagDate.shift(dcm, tag, argumentEntities, hmac);
+			case "shift_from_api" -> ShiftApiDate.shift(dcm, tag, argumentEntities, hmac);
+			case "date_format" -> DateFormat.format(dcm, tag, argumentEntities);
 			default -> null;
 		};
 	}
