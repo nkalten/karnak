@@ -77,13 +77,6 @@ public class ActionDates extends AbstractProfileItem {
 				return null;
 			}
 			try {
-				// Read the value to shift from dcm (the current, correctly nested
-				// attributes) rather than dcmCopy. During sequence recursion in
-				// Profile.applyAction, dcm is the current sequence item while dcmCopy
-				// stays the top-level dataset, so dcmCopy does not contain nested tags
-				// (e.g. dates inside Radiopharmaceutical Information Sequence). Using
-				// dcmCopy there yields a null value, the shift is skipped and the basic
-				// DICOM profile ends up removing the tag instead of shifting it.
 				String dummyValue = applyOption(dcm, tag, hmac);
 				if (dummyValue != null) {
 					actionByDefault.setDummyValue(dummyValue);
