@@ -107,7 +107,7 @@ public class ShiftApiDate {
 	 * {@link org.karnak.backend.service.profilepipe.Profile#applyAction} it is the
 	 * sequence <i>item</i>. It is the only dataset holding the value to shift and its
 	 * VR.</li>
-	 * <li>{@code context} is the untouched copy of that same dataset, taken before the
+	 * <li>{@code original} is the untouched copy of that same dataset, taken before the
 	 * pipeline started, against which the {@code {{...}}} placeholders of the {@code url}
 	 * and {@code body} arguments are resolved — from its own level outwards, so the
 	 * patient identifier of the enclosing study stays visible for a date nested in a
@@ -116,7 +116,7 @@ public class ShiftApiDate {
 	 * the shifted date tag, defeating the per-patient lookup.</li>
 	 * </ul>
 	 * @param dcm dataset being de-identified, at the nesting level of {@code tag}
-	 * @param context untouched copy of {@code dcm}, used to resolve the placeholders of
+	 * @param original untouched copy of {@code dcm}, used to resolve the placeholders of
 	 * the request
 	 * @param tag tag whose value must be shifted
 	 * @param argumentEntities arguments of the profile item
@@ -127,7 +127,7 @@ public class ShiftApiDate {
 	 * called or its response cannot be parsed
 	 * @throws AbortException if the response holds no usable shift value
 	 */
-	public static @Nullable String shift(Attributes dcm, Attributes context, int tag,
+	public static @Nullable String shift(Attributes dcm, Attributes original, int tag,
 			List<ArgumentEntity> argumentEntities) throws DateTimeException {
 		verifyShiftArguments(argumentEntities);
 
@@ -151,9 +151,9 @@ public class ShiftApiDate {
 			}
 		}
 
-		url = evaluateStringWithExpression(url, context);
+		url = evaluateStringWithExpression(url, original);
 		if (body != null) {
-			body = evaluateStringWithExpression(body, context);
+			body = evaluateStringWithExpression(body, original);
 		}
 
 		String response = fetchResponse(authConfig, url, method, body);

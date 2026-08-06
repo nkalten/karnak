@@ -33,11 +33,11 @@ public class BasicProfile extends AbstractProfileItem {
 	}
 
 	@Override
-	public @Nullable ActionItem getAction(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac) {
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
 		ActionItem action = actionMap.get(tag);
 		if (action == null) {
 			for (ProfileItem p : listProfiles) {
-				ActionItem val = p.getAction(dcm, dcmCopy, tag, hmac);
+				ActionItem val = p.getAction(dcm, original, tag, hmac);
 				if (val != null) {
 					return val;
 				}

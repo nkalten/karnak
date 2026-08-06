@@ -34,7 +34,7 @@ public interface ProfileItem {
 	 * in ascending order, every attribute of {@code dcm} sorting before {@code tag} may
 	 * already have been de-identified. Read it for the value of {@code tag} itself, which
 	 * is still untouched, and for what the object currently <i>is</i>.</li>
-	 * <li>{@code dcmCopy} is an untouched copy of {@code dcm}, taken before the pipeline
+	 * <li>{@code original} is an untouched copy of {@code dcm}, taken before the pipeline
 	 * started. Read it for anything else — another attribute, a condition, an expression
 	 * — so that the decision does not depend on the order the tags are visited in.</li>
 	 * </ul>
@@ -45,12 +45,12 @@ public interface ProfileItem {
 	 * reachable from an item, so study-level attributes remain visible through
 	 * {@link org.karnak.backend.util.DicomObjectTools#getStringInScope}.
 	 * @param dcm dataset being de-identified, at the nesting level of {@code tag}
-	 * @param dcmCopy untouched copy of {@code dcm}
+	 * @param original untouched copy of {@code dcm}
 	 * @param tag tag being visited
 	 * @param hmac hash context of the current patient
 	 * @return the action to apply, or {@code null} when this item does not apply
 	 */
-	@Nullable ActionItem getAction(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac);
+	@Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac);
 
 	@Nullable ActionItem put(int tag, ActionItem action);
 

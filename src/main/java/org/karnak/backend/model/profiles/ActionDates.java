@@ -65,7 +65,7 @@ public class ActionDates extends AbstractProfileItem {
 	}
 
 	@Override
-	public @Nullable ActionItem getAction(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac) {
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
 		final VR vr = dcm.getVR(tag);
 
 		if (vr == VR.AS || vr == VR.DA || vr == VR.DT || vr == VR.TM) {
@@ -77,7 +77,7 @@ public class ActionDates extends AbstractProfileItem {
 				return null;
 			}
 			try {
-				String dummyValue = applyOption(dcm, dcmCopy, tag, hmac);
+				String dummyValue = applyOption(dcm, original, tag, hmac);
 				if (dummyValue != null) {
 					actionByDefault.setDummyValue(dummyValue);
 					return actionByDefault;
@@ -102,24 +102,24 @@ public class ActionDates extends AbstractProfileItem {
 	 * the value at this point of the walk.
 	 *
 	 * <p>
-	 * The options that read <b>other</b> attributes get {@code dcmCopy} in addition and
+	 * The options that read <b>other</b> attributes get {@code original} in addition and
 	 * resolve them there: read from {@code dcm}, those attributes would already be
 	 * de-identified whenever they sort before {@code tag}, since the pipeline walks the
 	 * tags in ascending order.
 	 * @param dcm dataset being de-identified, at the nesting level of {@code tag}
-	 * @param dcmCopy untouched copy of {@code dcm}
+	 * @param original untouched copy of {@code dcm}
 	 * @param tag tag whose value must be transformed
 	 * @param hmac hash context of the current patient
 	 * @return the transformed value, or {@code null} when the option does not apply
 	 * @throws DateTimeException if the value of {@code tag} is not a valid date/time
 	 */
-	private @Nullable String applyOption(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac)
+	private @Nullable String applyOption(Attributes dcm, Attributes original, int tag, HMAC hmac)
 			throws DateTimeException {
 		return switch (option) {
 			case "shift" -> ShiftDate.shift(dcm, tag, argumentEntities);
 			case "shift_range" -> ShiftRangeDate.shift(dcm, tag, argumentEntities, hmac);
-			case "shift_by_tag" -> ShiftByTagDate.shift(dcm, dcmCopy, tag, argumentEntities);
-			case "shift_from_api" -> ShiftApiDate.shift(dcm, dcmCopy, tag, argumentEntities);
+			case "shift_by_tag" -> ShiftByTagDate.shift(dcm, original, tag, argumentEntities);
+			case "shift_from_api" -> ShiftApiDate.shift(dcm, original, tag, argumentEntities);
 			case "date_format" -> DateFormat.format(dcm, tag, argumentEntities);
 			default -> null;
 		};

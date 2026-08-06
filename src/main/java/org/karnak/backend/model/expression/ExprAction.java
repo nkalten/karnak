@@ -53,13 +53,13 @@ public class ExprAction implements ExpressionItem {
 	@Getter
 	private String stringValue;
 
-	private @Nullable Attributes dcmCopy;
+	private @Nullable Attributes original;
 
-	public ExprAction(int tag, VR vr, Attributes dcmCopy) {
+	public ExprAction(int tag, VR vr, Attributes original) {
 		this.tag = tag;
 		this.vr = Objects.requireNonNull(vr);
-		this.stringValue = dcmCopy.getString(this.tag);
-		this.dcmCopy = dcmCopy;
+		this.stringValue = original.getString(this.tag);
+		this.original = original;
 	}
 
 	public ExprAction(int tag, VR vr, String stringValue) {
@@ -107,7 +107,7 @@ public class ExprAction implements ExpressionItem {
 	 * @return the value found in the innermost dataset holding the tag, or {@code null}
 	 */
 	public @Nullable String getString(int tag) {
-		return dcmCopy == null ? null : DicomObjectTools.getStringInScope(dcmCopy, tag);
+		return original == null ? null : DicomObjectTools.getStringInScope(original, tag);
 	}
 
 	/**
@@ -117,12 +117,12 @@ public class ExprAction implements ExpressionItem {
 	 * @return {@code true} when any dataset of the object holds the tag
 	 */
 	public boolean tagIsPresent(int tag) {
-		return dcmCopy != null && DicomObjectTools.containsTagInAllAttributes(tag, dcmCopy.getRoot());
+		return original != null && DicomObjectTools.containsTagInAllAttributes(tag, original.getRoot());
 	}
 
 	public ActionItem ComputePatientAge() {
 		ActionItem replace = new Replace("D");
-		Attributes localCopy = dcmCopy;
+		Attributes localCopy = original;
 		if (localCopy != null) {
 			// The age is derived from the patient and study modules, which live at the
 			// top level even when the expression is evaluated inside a sequence

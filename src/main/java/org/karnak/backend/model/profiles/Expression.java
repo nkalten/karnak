@@ -57,10 +57,10 @@ public class Expression extends AbstractProfileItem {
 	}
 
 	@Override
-	public @Nullable ActionItem getAction(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac) {
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
 		if (exceptedTagsAction.get(tag) == null && tagsAction.get(tag) != null) {
 			final String expr = argumentEntities.getFirst().getArgumentValue();
-			final ExprAction exprAction = new ExprAction(tag, dcm.getVR(tag), dcmCopy);
+			final ExprAction exprAction = new ExprAction(tag, dcm.getVR(tag), original);
 			return (ActionItem) ExpressionResult.get(expr, exprAction, ActionItem.class);
 		}
 		return null;

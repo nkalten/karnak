@@ -179,16 +179,16 @@ public class Profile {
 	 * its sequences.
 	 *
 	 * <p>
-	 * {@code dcm} is mutated in place while {@code dcmCopy} is the untouched copy the
+	 * {@code dcm} is mutated in place while {@code original} is the untouched copy the
 	 * decisions are read from — conditions, expressions and the options that need a value
 	 * the pipeline may already have replaced. Both descend together into sequences:
 	 * recursion passes the item of {@code dcm} together with the matching item of
-	 * {@code dcmCopy}, so a decision taken for a nested tag reads the original value of
+	 * {@code original}, so a decision taken for a nested tag reads the original value of
 	 * that item and not the top-level dataset. The enclosing datasets stay reachable from
 	 * an item, so study-level tags remain visible from a nested expression (see
 	 * {@link org.karnak.backend.util.DicomObjectTools#getStringInScope}).
 	 * @param dcm dataset being de-identified, mutated in place
-	 * @param dcmCopy untouched copy of {@code dcm}, taken before the pipeline started
+	 * @param original untouched copy of {@code dcm}, taken before the pipeline started
 	 * @param hmac hash context of the current patient
 	 * @param profilePassedInSequence profile item whose action must be applied to the
 	 * items of the sequence being visited, {@code null} at the top level
@@ -196,12 +196,12 @@ public class Profile {
 	 * visited, {@code null} at the top level
 	 * @param context editor context, aborted when a profile item excludes the instance
 	 */
-	public void applyAction(Attributes dcm, Attributes dcmCopy, HMAC hmac,
+	public void applyAction(Attributes dcm, Attributes original, HMAC hmac,
 			@Nullable ProfileItem profilePassedInSequence, @Nullable ActionItem actionPassedInSequence,
 			AttributeEditorContext context) {
 		for (int tag : dcm.tags()) {
 			VR vr = dcm.getVR(tag);
-			final ExprCondition exprCondition = new ExprCondition(dcmCopy);
+			final ExprCondition exprCondition = new ExprCondition(original);
 
 			ActionItem currentAction = null;
 			ProfileItem currentProfile = null;
@@ -211,13 +211,13 @@ public class Profile {
 				if (profileEntity.getCondition() == null
 						|| profileEntity.getCodeName().equals(ProfileItemType.DEFACING.getClassAlias())
 						|| profileEntity.getCodeName().equals(ProfileItemType.CLEAN_PIXEL_DATA.getClassAlias())) {
-					currentAction = profileEntity.getAction(dcm, dcmCopy, tag, hmac);
+					currentAction = profileEntity.getAction(dcm, original, tag, hmac);
 				}
 				else {
 					boolean conditionIsOk = (Boolean) ExpressionResult.get(profileEntity.getCondition(), exprCondition,
 							Boolean.class);
 					if (conditionIsOk) {
-						currentAction = profileEntity.getAction(dcm, dcmCopy, tag, hmac);
+						currentAction = profileEntity.getAction(dcm, original, tag, hmac);
 					}
 				}
 
@@ -252,9 +252,9 @@ public class Profile {
 			if (!(currentAction instanceof Remove) && !(currentAction instanceof ReplaceNull) && vr == VR.SQ) {
 				Sequence seq = dcm.getSequence(tag);
 				if (seq != null) {
-					Sequence seqCopy = dcmCopy.getSequence(tag);
+					Sequence originalSeq = original.getSequence(tag);
 					for (int i = 0; i < seq.size(); i++) {
-						this.applyAction(seq.get(i), originalItem(seqCopy, i, dcmCopy), hmac, currentProfile,
+						this.applyAction(seq.get(i), originalItem(originalSeq, i, original), hmac, currentProfile,
 								currentAction, context);
 					}
 				}
@@ -275,17 +275,19 @@ public class Profile {
 	 * the same order, so the items match one to one. The enclosing copy is returned when
 	 * they do not — a sequence added to the dataset by a profile item has no counterpart
 	 * in the copy — which keeps the behaviour of a decision taken on the study.
-	 * @param sequenceCopy copy of the sequence being visited, {@code null} when the copy
-	 * does not hold it
+	 * @param originalSequence copy of the sequence being visited, {@code null} when the
+	 * copy does not hold it
 	 * @param index index of the item in the sequence being visited
-	 * @param enclosingCopy copy of the dataset owning the sequence, used as a fallback
-	 * @return the copy of the item, or {@code enclosingCopy}
+	 * @param enclosingOriginal copy of the dataset owning the sequence, used as a
+	 * fallback
+	 * @return the copy of the item, or {@code enclosingOriginal}
 	 */
-	private static Attributes originalItem(@Nullable Sequence sequenceCopy, int index, Attributes enclosingCopy) {
-		if (sequenceCopy != null && index < sequenceCopy.size()) {
-			return sequenceCopy.get(index);
+	private static Attributes originalItem(@Nullable Sequence originalSequence, int index,
+			Attributes enclosingOriginal) {
+		if (originalSequence != null && index < originalSequence.size()) {
+			return originalSequence.get(index);
 		}
-		return enclosingCopy;
+		return enclosingOriginal;
 	}
 
 	private void execute(ActionItem currentAction, Attributes dcm, int tag, HMAC hmac) {
@@ -300,11 +302,11 @@ public class Profile {
 		}
 	}
 
-	public void applyCleanPixelData(Attributes dcmCopy, AttributeEditorContext context, ProfileEntity profileEntity) {
-		Object pix = dcmCopy.getValue(Tag.PixelData);
+	public void applyCleanPixelData(Attributes original, AttributeEditorContext context, ProfileEntity profileEntity) {
+		Object pix = original.getValue(Tag.PixelData);
 		if ((pix instanceof BulkData || pix instanceof Fragments)
 				&& this.profiles.stream().anyMatch(CleanPixelData.class::isInstance)) {
-			String sopClassUID = dcmCopy.getString(Tag.SOPClassUID);
+			String sopClassUID = original.getString(Tag.SOPClassUID);
 			if (!StringUtil.hasText(sopClassUID)) {
 				throw new IllegalStateException("DICOM Object does not contain sopClassUID");
 			}
@@ -317,7 +319,7 @@ public class Profile {
 				.orElse(null);
 
 			if (this.isAutomaticMasksGeneration(cleanPixelDataItem)) {
-				List<MaskArea> apiMasks = this.fetchMasksFromDeidentifyImageApi(dcmCopy, context.getTsuid());
+				List<MaskArea> apiMasks = this.fetchMasksFromDeidentifyImageApi(original, context.getTsuid());
 				if (!apiMasks.isEmpty()) {
 					// Use the first API mask as the "primary" mask (set on the context),
 					// and store the rest as "additional" masks in context.properties.
@@ -330,14 +332,14 @@ public class Profile {
 			if (mask == null && !this.isAutomaticMasksGeneration(cleanPixelDataItem)) {
 				// Manual mask should be applied only if automatic mask generation is not
 				// enabled
-				mask = this.getMask(new MaskStationCondition(dcmCopy.getString(Tag.StationName),
-						dcmCopy.getString(Tag.Columns), dcmCopy.getString(Tag.Rows)));
+				mask = this.getMask(new MaskStationCondition(original.getString(Tag.StationName),
+						original.getString(Tag.Columns), original.getString(Tag.Rows)));
 			}
 
 			// A mask must be applied with all the US and Secondary Capture sopClassUID,
 			// and with BurnedInAnnotation
-			if (this.isCleanPixelAllowedDependingImageType(dcmCopy, sopClassUID)
-					&& this.evaluateConditionCleanPixelData(dcmCopy)) {
+			if (this.isCleanPixelAllowedDependingImageType(original, sopClassUID)
+					&& this.evaluateConditionCleanPixelData(original)) {
 				context.setMaskArea(mask);
 				if (mask == null && !this.isAutomaticMasksGeneration(cleanPixelDataItem)) {
 					throw new IllegalStateException("Clean pixel is not applied: mask not defined in station name");
@@ -373,16 +375,16 @@ public class Profile {
 	/**
 	 * Calls the external de-identification image API and converts the returned masks into
 	 * a list of {@link MaskArea}.
-	 * @param dcmCopy DICOM attributes (original copy, before de-identification)
+	 * @param original DICOM attributes (original copy, before de-identification)
 	 * @return a list of {@link MaskArea}, possibly empty but never {@code null}
 	 */
-	private List<MaskArea> fetchMasksFromDeidentifyImageApi(Attributes dcmCopy, String tsuid) {
+	private List<MaskArea> fetchMasksFromDeidentifyImageApi(Attributes original, String tsuid) {
 		if (this.deidentifyImageService == null) {
 			return Collections.emptyList();
 		}
-		Map<String, String> sensitiveData = SensitiveTagDefinition.extractSensitiveData(dcmCopy);
+		Map<String, String> sensitiveData = SensitiveTagDefinition.extractSensitiveData(original);
 
-		List<MaskBody> masks = this.deidentifyImageService.callDeidentifyImageApi(dcmCopy, sensitiveData, tsuid);
+		List<MaskBody> masks = this.deidentifyImageService.callDeidentifyImageApi(original, sensitiveData, tsuid);
 
 		if (masks.isEmpty()) {
 			return Collections.emptyList();
@@ -406,21 +408,21 @@ public class Profile {
 	 * A mask applies to US, Secondary Capture and XC SOP classes, or any
 	 * BurnedInAnnotation image.
 	 */
-	boolean isCleanPixelAllowedDependingImageType(Attributes dcmCopy, String sopClassUID) {
+	boolean isCleanPixelAllowedDependingImageType(Attributes original, String sopClassUID) {
 		String sopPattern = sopClassUID + ".";
 
 		return sopPattern.startsWith("1.2.840.10008.5.1.4.1.1.6.")
 				|| sopPattern.startsWith("1.2.840.10008.5.1.4.1.1.7.")
 				|| sopPattern.startsWith("1.2.840.10008.5.1.4.1.1.3.")
 				|| sopClassUID.equals("1.2.840.10008.5.1.4.1.1.77.1.1")
-				|| "YES".equalsIgnoreCase(dcmCopy.getString(Tag.BurnedInAnnotation));
+				|| "YES".equalsIgnoreCase(original.getString(Tag.BurnedInAnnotation));
 	}
 
 	/**
 	 * Evaluates the optional condition of the Clean Pixel Data profile item (true if
 	 * none).
 	 */
-	boolean evaluateConditionCleanPixelData(Attributes dcmCopy) {
+	boolean evaluateConditionCleanPixelData(Attributes original) {
 		boolean conditionCleanPixelData = true;
 		ProfileItem profileItemCleanPixelData = this.profiles.stream()
 			.filter(CleanPixelData.class::isInstance)
@@ -428,24 +430,24 @@ public class Profile {
 			.orElse(null);
 		if (profileItemCleanPixelData != null && profileItemCleanPixelData.getCondition() != null) {
 			// Evaluate the condition
-			ExprCondition exprCondition = new ExprCondition(dcmCopy);
+			ExprCondition exprCondition = new ExprCondition(original);
 			conditionCleanPixelData = (Boolean) ExpressionResult.get(profileItemCleanPixelData.getCondition(),
 					exprCondition, Boolean.class);
 		}
 		return conditionCleanPixelData;
 	}
 
-	public void applyDefacing(Attributes dcmCopy, AttributeEditorContext context) {
+	public void applyDefacing(Attributes original, AttributeEditorContext context) {
 		ProfileItem profileItemDefacing = this.profiles.stream()
 			.filter(Defacing.class::isInstance)
 			.findFirst()
 			.orElse(null);
-		if (profileItemDefacing != null && isCT(dcmCopy) && isAxial(dcmCopy)) {
+		if (profileItemDefacing != null && isCT(original) && isAxial(original)) {
 			if (profileItemDefacing.getCondition() == null) {
 				context.getProperties().setProperty(Defacer.APPLY_DEFACING, "true");
 			}
 			else {
-				ExprCondition exprCondition = new ExprCondition(dcmCopy);
+				ExprCondition exprCondition = new ExprCondition(original);
 				boolean conditionIsOk = (Boolean) ExpressionResult.get(profileItemDefacing.getCondition(),
 						exprCondition, Boolean.class);
 				if (conditionIsOk) {
@@ -471,11 +473,11 @@ public class Profile {
 		String pseudonymValue = this.pseudonym.generatePseudonym(destinationEntity, dcm);
 		String newPatientID = this.generatePatientID(pseudonymValue, hmac).toString(16).toUpperCase();
 
-		Attributes dcmCopy = new Attributes(dcm);
-		this.applyCleanPixelData(dcmCopy, context, profileEntity);
+		Attributes original = new Attributes(dcm);
+		this.applyCleanPixelData(original, context, profileEntity);
 		// Clean recognizable visual features option
-		this.applyDefacing(dcmCopy, context);
-		this.applyAction(dcm, dcmCopy, hmac, null, null, context);
+		this.applyDefacing(original, context);
+		this.applyAction(dcm, original, hmac, null, null, context);
 
 		ProjectEntity deidProject = destinationEntity.getDeIdentificationProjectEntity();
 		AttributesByDefault.setPatientModule(dcm, newPatientID, pseudonymValue, deidProject);
@@ -490,8 +492,8 @@ public class Profile {
 		HMAC hmac = this.generateHMAC(dcm.getString(Tag.PatientID), projectEntity);
 		putSourceMdc(dcm);
 
-		Attributes dcmCopy = new Attributes(dcm);
-		this.applyAction(dcm, dcmCopy, hmac, null, null, context);
+		Attributes original = new Attributes(dcm);
+		this.applyAction(dcm, original, hmac, null, null, context);
 
 		this.logClinicalEvent("TagMorphing", dcm, destinationEntity.getTagMorphingProjectEntity().getName(),
 				profileEntity.getName());

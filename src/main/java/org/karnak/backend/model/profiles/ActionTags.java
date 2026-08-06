@@ -59,7 +59,7 @@ public class ActionTags extends AbstractProfileItem {
 	}
 
 	@Override
-	public @Nullable ActionItem getAction(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac) {
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
 		if (exceptedTagsAction.get(tag) == null) {
 			return tagsAction.get(tag);
 		}

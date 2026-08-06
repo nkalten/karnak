@@ -52,7 +52,7 @@ public class ShiftByTagDate {
 	 * sequence <i>item</i>. It is the only dataset holding the value to shift, but its
 	 * other attributes may already have been de-identified, since the profile walks tags
 	 * in ascending order.</li>
-	 * <li>{@code context} is the untouched copy of that same dataset, taken before the
+	 * <li>{@code original} is the untouched copy of that same dataset, taken before the
 	 * pipeline started, from which the shift amounts are resolved outwards — the item
 	 * first, then the enclosing study, where they usually live. Reading them from
 	 * {@code dcm} would return the de-identified value whenever the referenced tag sorts
@@ -65,19 +65,19 @@ public class ShiftByTagDate {
 	 * unshifted date reach the destination, whereas {@code null} leaves the attribute to
 	 * the following profile items (typically removed by the basic DICOM profile).
 	 * @param dcm dataset being de-identified, at the nesting level of {@code tag}
-	 * @param context untouched copy of {@code dcm}, used to resolve the shift tags
+	 * @param original untouched copy of {@code dcm}, used to resolve the shift tags
 	 * @param tag tag whose value must be shifted
 	 * @param argumentEntities arguments of the profile item
 	 * @return the shifted value, or {@code null} if the value or a configured shift tag
 	 * could not be resolved
 	 */
-	public static @Nullable String shift(Attributes dcm, Attributes context, int tag,
+	public static @Nullable String shift(Attributes dcm, Attributes original, int tag,
 			List<ArgumentEntity> argumentEntities) {
 		verifyShiftArguments(argumentEntities);
 
 		String dcmElValue = dcm.getString(tag);
-		Integer shiftDays = resolveShiftAmount(dcm, context, argumentEntities, "days_tag");
-		Integer shiftSeconds = resolveShiftAmount(dcm, context, argumentEntities, "seconds_tag");
+		Integer shiftDays = resolveShiftAmount(dcm, original, argumentEntities, "days_tag");
+		Integer shiftSeconds = resolveShiftAmount(dcm, original, argumentEntities, "seconds_tag");
 		if (shiftDays == null || shiftSeconds == null) {
 			return null;
 		}
@@ -89,13 +89,13 @@ public class ShiftByTagDate {
 	 * Resolves the shift amount held by the tag named by {@code argumentKey}.
 	 * @param dcm dataset being de-identified, used as a last resort when the copy does
 	 * not hold the shift tag
-	 * @param context untouched copy of {@code dcm}, resolved from its own level outwards
+	 * @param original untouched copy of {@code dcm}, resolved from its own level outwards
 	 * @param argumentEntities arguments of the profile item
 	 * @param argumentKey {@code days_tag} or {@code seconds_tag}
 	 * @return {@code 0} when the argument is not configured, the parsed amount when it
 	 * resolves, {@code null} when it is configured but absent or not a number
 	 */
-	private static @Nullable Integer resolveShiftAmount(Attributes dcm, Attributes context,
+	private static @Nullable Integer resolveShiftAmount(Attributes dcm, Attributes original,
 			List<ArgumentEntity> argumentEntities, String argumentKey) {
 		String shiftTagValue = ArgumentUtil.stringValue(argumentEntities, argumentKey, null);
 		if (shiftTagValue == null || shiftTagValue.isBlank()) {
@@ -104,7 +104,7 @@ public class ShiftByTagDate {
 		}
 
 		int shiftTag = ExprCondition.intFromHexString(shiftTagValue);
-		String value = DicomObjectTools.getStringInScope(context, shiftTag);
+		String value = DicomObjectTools.getStringInScope(original, shiftTag);
 		if (value == null) {
 			value = dcm.getString(shiftTag);
 		}

@@ -52,14 +52,14 @@ public class AddTag extends AbstractProfileItem {
 	}
 
 	@Override
-	public @Nullable ActionItem getAction(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac) {
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
 		// Read from the untouched copy: the pipeline replaces (0008,0018) early in its
 		// ascending walk, so the working dataset would answer with the original UID for
 		// the
 		// first tags and with the pseudonymized one afterwards, which this latch would
 		// read
 		// as a second instance
-		String currentUID = dcmCopy.getString(Tag.SOPInstanceUID);
+		String currentUID = original.getString(Tag.SOPInstanceUID);
 		if (!currentInstanceUID.equals(currentUID) && currentUID != null) {
 			currentInstanceUID = currentUID;
 			tagAdded = false;
@@ -68,7 +68,7 @@ public class AddTag extends AbstractProfileItem {
 			IncludedTagEntity t = tagEntities.getFirst();
 			String tagValue = StandardDICOM.cleanTagPath(t.getTagValue());
 
-			if (!standardDICOM.getAttributesBySOP(dcmCopy.getString(Tag.SOPClassUID), tagValue).isEmpty()) {
+			if (!standardDICOM.getAttributesBySOP(original.getString(Tag.SOPClassUID), tagValue).isEmpty()) {
 
 				String value = "";
 				@Nullable AttributeDetail detail = standardDICOM.getAttributeDetail(tagValue);
@@ -90,8 +90,8 @@ public class AddTag extends AbstractProfileItem {
 				// action is not applied on every attribute in the instance
 				tagAdded = true;
 				if (log.isWarnEnabled()) {
-					log.warn(LOG_PATTERN, dcmCopy.getString(Tag.SOPInstanceUID), tagValue, "A",
-							"Tag not added, it is not defined in current SOP " + dcmCopy.getString(Tag.SOPClassUID));
+					log.warn(LOG_PATTERN, original.getString(Tag.SOPInstanceUID), tagValue, "A",
+							"Tag not added, it is not defined in current SOP " + original.getString(Tag.SOPClassUID));
 				}
 			}
 		}

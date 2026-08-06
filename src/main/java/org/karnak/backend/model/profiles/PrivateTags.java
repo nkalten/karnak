@@ -37,7 +37,7 @@ public class PrivateTags extends AbstractProfileItem {
 	}
 
 	@Override
-	public @Nullable ActionItem getAction(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac) {
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
 		if (TagUtils.isPrivateGroup(tag)) {
 			if (!tagsAction.isEmpty() && exceptedTagsAction.isEmpty()) {
 				return tagsAction.get(tag);
