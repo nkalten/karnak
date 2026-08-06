@@ -98,8 +98,11 @@ public abstract class AbstractProfileItem implements ProfileItem {
 
 	/** Validates the optional {@link #condition} SpEL expression. */
 	protected void validateCondition() throws ProfileException {
+		if (condition == null) {
+			return;
+		}
 		ExpressionError expressionError = ExpressionResult.isValid(condition, new ExprCondition(), Boolean.class);
-		if (condition != null && !expressionError.isValid()) {
+		if (!expressionError.isValid()) {
 			throw new ProfileException(expressionError.getMsg());
 		}
 	}

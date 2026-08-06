@@ -28,6 +28,16 @@ import org.karnak.backend.model.action.UID;
 import org.karnak.backend.util.DicomObjectTools;
 import org.weasis.core.util.StringUtil;
 
+/**
+ * Exposes the attributes of the object being de-identified to the expression of a profile
+ * item, and builds the action it returns.
+ *
+ * <p>
+ * The dataset it reads from is the untouched copy of the object at the nesting level of
+ * the tag being processed: {@link #getString(int)} resolves a tag from that level
+ * outwards, so an expression written for an attribute nested in a sequence sees both the
+ * attributes of its item and those of the enclosing study.
+ */
 @NullUnmarked
 public class ExprAction implements ExpressionItem {
 
@@ -89,19 +99,34 @@ public class ExprAction implements ExpressionItem {
 		return new ReplaceNull("Z");
 	}
 
-	public String getString(int tag) {
-		return DicomUtils.getStringFromDicomElement(dcmCopy, tag);
+	/**
+	 * Returns the value of a tag, looked up from the dataset the expression is evaluated
+	 * on outwards: a tag of the enclosing study is visible from an expression evaluated
+	 * for an attribute nested in a sequence.
+	 * @param tag tag to look up
+	 * @return the value found in the innermost dataset holding the tag, or {@code null}
+	 */
+	public @Nullable String getString(int tag) {
+		return dcmCopy == null ? null : DicomObjectTools.getStringInScope(dcmCopy, tag);
 	}
 
+	/**
+	 * Tells whether a tag is present anywhere in the object, at any nesting level, and
+	 * not only below the dataset the expression is evaluated on.
+	 * @param tag tag to look up
+	 * @return {@code true} when any dataset of the object holds the tag
+	 */
 	public boolean tagIsPresent(int tag) {
-		return DicomObjectTools.containsTagInAllAttributes(tag, dcmCopy);
+		return dcmCopy != null && DicomObjectTools.containsTagInAllAttributes(tag, dcmCopy.getRoot());
 	}
 
 	public ActionItem ComputePatientAge() {
 		ActionItem replace = new Replace("D");
 		Attributes localCopy = dcmCopy;
 		if (localCopy != null) {
-			replace.setDummyValue(DicomUtils.getPatientAgeInPeriod(localCopy, Tag.PatientAge, false));
+			// The age is derived from the patient and study modules, which live at the
+			// top level even when the expression is evaluated inside a sequence
+			replace.setDummyValue(DicomUtils.getPatientAgeInPeriod(localCopy.getRoot(), Tag.PatientAge, false));
 		}
 		return replace;
 	}

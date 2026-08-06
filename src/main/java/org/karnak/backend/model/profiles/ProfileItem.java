@@ -17,8 +17,39 @@ import org.karnak.backend.exception.ProfileException;
 import org.karnak.backend.model.action.ActionItem;
 import org.karnak.backend.model.profilepipe.HMAC;
 
+/** One item of a de-identification or tag-morphing profile. */
 public interface ProfileItem {
 
+	/**
+	 * Returns the action this profile item wants to apply to {@code tag}, or {@code null}
+	 * when it does not apply to it.
+	 *
+	 * <p>
+	 * Two views of the same object are given, and implementations must pick deliberately
+	 * between them:
+	 * <ul>
+	 * <li>{@code dcm} is the dataset being de-identified. It is the one that will be
+	 * forwarded, and the one the returned action is executed on. Because
+	 * {@link org.karnak.backend.service.profilepipe.Profile#applyAction} walks the tags
+	 * in ascending order, every attribute of {@code dcm} sorting before {@code tag} may
+	 * already have been de-identified. Read it for the value of {@code tag} itself, which
+	 * is still untouched, and for what the object currently <i>is</i>.</li>
+	 * <li>{@code dcmCopy} is an untouched copy of {@code dcm}, taken before the pipeline
+	 * started. Read it for anything else — another attribute, a condition, an expression
+	 * — so that the decision does not depend on the order the tags are visited in.</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * Both are at the same nesting level: when the profile recurses into a sequence, they
+	 * are the item being visited and the copy of that same item. Enclosing datasets stay
+	 * reachable from an item, so study-level attributes remain visible through
+	 * {@link org.karnak.backend.util.DicomObjectTools#getStringInScope}.
+	 * @param dcm dataset being de-identified, at the nesting level of {@code tag}
+	 * @param dcmCopy untouched copy of {@code dcm}
+	 * @param tag tag being visited
+	 * @param hmac hash context of the current patient
+	 * @return the action to apply, or {@code null} when this item does not apply
+	 */
 	@Nullable ActionItem getAction(Attributes dcm, Attributes dcmCopy, int tag, HMAC hmac);
 
 	@Nullable ActionItem put(int tag, ActionItem action);

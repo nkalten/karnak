@@ -9,6 +9,9 @@
  */
 package org.karnak.backend.service.profilepipe;
 
+import static org.karnak.backend.dicom.DefacingUtil.isAxial;
+import static org.karnak.backend.dicom.DefacingUtil.isCT;
+
 import java.awt.*;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -19,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.BulkData;
@@ -58,9 +60,6 @@ import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
 import org.weasis.core.util.StringUtil;
 import org.weasis.dicom.param.AttributeEditorContext;
-
-import static org.karnak.backend.dicom.DefacingUtil.isAxial;
-import static org.karnak.backend.dicom.DefacingUtil.isCT;
 
 @Slf4j
 public class Profile {
@@ -175,6 +174,28 @@ public class Profile {
 		return Collections.emptyList();
 	}
 
+	/**
+	 * Applies the profile items to every tag of {@code dcm}, recursing into the items of
+	 * its sequences.
+	 *
+	 * <p>
+	 * {@code dcm} is mutated in place while {@code dcmCopy} is the untouched copy the
+	 * decisions are read from — conditions, expressions and the options that need a value
+	 * the pipeline may already have replaced. Both descend together into sequences:
+	 * recursion passes the item of {@code dcm} together with the matching item of
+	 * {@code dcmCopy}, so a decision taken for a nested tag reads the original value of
+	 * that item and not the top-level dataset. The enclosing datasets stay reachable from
+	 * an item, so study-level tags remain visible from a nested expression (see
+	 * {@link org.karnak.backend.util.DicomObjectTools#getStringInScope}).
+	 * @param dcm dataset being de-identified, mutated in place
+	 * @param dcmCopy untouched copy of {@code dcm}, taken before the pipeline started
+	 * @param hmac hash context of the current patient
+	 * @param profilePassedInSequence profile item whose action must be applied to the
+	 * items of the sequence being visited, {@code null} at the top level
+	 * @param actionPassedInSequence action to apply to the items of the sequence being
+	 * visited, {@code null} at the top level
+	 * @param context editor context, aborted when a profile item excludes the instance
+	 */
 	public void applyAction(Attributes dcm, Attributes dcmCopy, HMAC hmac,
 			@Nullable ProfileItem profilePassedInSequence, @Nullable ActionItem actionPassedInSequence,
 			AttributeEditorContext context) {
@@ -231,8 +252,10 @@ public class Profile {
 			if (!(currentAction instanceof Remove) && !(currentAction instanceof ReplaceNull) && vr == VR.SQ) {
 				Sequence seq = dcm.getSequence(tag);
 				if (seq != null) {
-					for (Attributes d : seq) {
-						this.applyAction(d, dcmCopy, hmac, currentProfile, currentAction, context);
+					Sequence seqCopy = dcmCopy.getSequence(tag);
+					for (int i = 0; i < seq.size(); i++) {
+						this.applyAction(seq.get(i), originalItem(seqCopy, i, dcmCopy), hmac, currentProfile,
+								currentAction, context);
 					}
 				}
 			}
@@ -242,6 +265,27 @@ public class Profile {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Returns the untouched copy of the sequence item at the given index.
+	 *
+	 * <p>
+	 * The copy is built by {@code new Attributes(dcm)}, which recreates the sequences in
+	 * the same order, so the items match one to one. The enclosing copy is returned when
+	 * they do not — a sequence added to the dataset by a profile item has no counterpart
+	 * in the copy — which keeps the behaviour of a decision taken on the study.
+	 * @param sequenceCopy copy of the sequence being visited, {@code null} when the copy
+	 * does not hold it
+	 * @param index index of the item in the sequence being visited
+	 * @param enclosingCopy copy of the dataset owning the sequence, used as a fallback
+	 * @return the copy of the item, or {@code enclosingCopy}
+	 */
+	private static Attributes originalItem(@Nullable Sequence sequenceCopy, int index, Attributes enclosingCopy) {
+		if (sequenceCopy != null && index < sequenceCopy.size()) {
+			return sequenceCopy.get(index);
+		}
+		return enclosingCopy;
 	}
 
 	private void execute(ActionItem currentAction, Attributes dcm, int tag, HMAC hmac) {
@@ -284,7 +328,8 @@ public class Profile {
 				}
 			}
 			if (mask == null && !this.isAutomaticMasksGeneration(cleanPixelDataItem)) {
-				// Manual mask should be applied only if automatic mask generation is not enabled
+				// Manual mask should be applied only if automatic mask generation is not
+				// enabled
 				mask = this.getMask(new MaskStationCondition(dcmCopy.getString(Tag.StationName),
 						dcmCopy.getString(Tag.Columns), dcmCopy.getString(Tag.Rows)));
 			}

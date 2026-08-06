@@ -67,7 +67,9 @@ public class ReplaceApi extends AbstractProfileItem {
 			return null;
 		}
 
-		ApiArguments args = parseArguments(dcm);
+		// The request is built from the untouched copy, not from the dataset being
+		// de-identified: see the javadoc of parseArguments
+		ApiArguments args = parseArguments(dcmCopy);
 		String value = fetchValue(args);
 
 		ActionItem replace = new Replace("D");
@@ -84,7 +86,30 @@ public class ReplaceApi extends AbstractProfileItem {
 		return replace;
 	}
 
-	private ApiArguments parseArguments(Attributes dcm) {
+	/**
+	 * Reads the endpoint call configuration from the arguments of the profile item,
+	 * resolving the {@code {{...}}} placeholders of the {@code url} and {@code body}
+	 * against {@code context}.
+	 *
+	 * <p>
+	 * {@code context} must be the untouched copy of the dataset, not the dataset being
+	 * de-identified: the placeholders name attributes other than the tag being processed
+	 * — typically the patient identifier — and
+	 * {@link org.karnak.backend.service.profilepipe.Profile#applyAction} walks the tags
+	 * in ascending order, so those attributes have already been replaced whenever they
+	 * sort before it. Querying the endpoint with an already pseudonymized identifier
+	 * would defeat the per-patient lookup this profile item exists for.
+	 *
+	 * <p>
+	 * The copy is at the nesting level of the tag being processed, and the placeholders
+	 * are resolved from that level outwards, so a tag of the enclosing study stays
+	 * visible for an attribute nested in a sequence — see
+	 * {@link org.karnak.backend.util.DicomObjectTools#getStringInScope}.
+	 * @param context untouched copy of the dataset, at the nesting level of the tag being
+	 * processed
+	 * @return the endpoint call configuration
+	 */
+	private ApiArguments parseArguments(Attributes context) {
 		String url = null;
 		String responsePath = null;
 		String method = "get"; // defaults to get if not specified
@@ -93,7 +118,7 @@ public class ReplaceApi extends AbstractProfileItem {
 		String defaultValue = null;
 		for (ArgumentEntity ae : argumentEntities) {
 			switch (ae.getArgumentKey()) {
-				case "url" -> url = evaluateStringWithExpression(ae.getArgumentValue(), dcm);
+				case "url" -> url = evaluateStringWithExpression(ae.getArgumentValue(), context);
 				case "responsePath" -> {
 					responsePath = ae.getArgumentValue();
 					if (!responsePath.startsWith("/")) {
@@ -101,7 +126,7 @@ public class ReplaceApi extends AbstractProfileItem {
 					}
 				}
 				case "method" -> method = ae.getArgumentValue();
-				case "body" -> body = evaluateStringWithExpression(ae.getArgumentValue(), dcm);
+				case "body" -> body = evaluateStringWithExpression(ae.getArgumentValue(), context);
 				case "authConfig" -> authConfig = ae.getArgumentValue();
 				case "defaultValue" -> defaultValue = ae.getArgumentValue();
 				default -> {
@@ -197,7 +222,8 @@ public class ReplaceApi extends AbstractProfileItem {
 	private static void validateExpression(String expression) throws ProfileException {
 		String error = validateStringWithExpression(expression);
 		if (error != null) {
-			throw new ProfileException(String.format("Expression is not valid: \n\r%s", error));
+			// The message already carries the "Expression is not valid" prefix
+			throw new ProfileException(error);
 		}
 	}
 

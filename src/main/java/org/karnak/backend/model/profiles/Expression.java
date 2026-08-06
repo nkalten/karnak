@@ -80,8 +80,8 @@ public class Expression extends AbstractProfileItem {
 				new ExprAction(1, VR.AE, new Attributes()), ActionItem.class);
 
 		if (!expressionError.isValid()) {
-			throw new IllegalArgumentException(
-					String.format("Expression is not valid: \n\r%s", expressionError.getMsg()));
+			// The message already carries the "Expression is not valid" prefix
+			throw new IllegalArgumentException(expressionError.getMsg());
 		}
 	}
 
