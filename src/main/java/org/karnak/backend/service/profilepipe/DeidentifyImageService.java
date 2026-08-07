@@ -9,14 +9,15 @@
  */
 package org.karnak.backend.service.profilepipe;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.BulkData;
@@ -27,6 +28,7 @@ import org.jspecify.annotations.Nullable;
 import org.karnak.backend.model.profilebody.MaskBody;
 import org.karnak.backend.model.profilepipe.DeidentifyImageResponse;
 import org.karnak.backend.model.profilepipe.ReportingResponse;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
@@ -126,7 +128,7 @@ public class DeidentifyImageService {
 	public List<MaskBody> callDeidentifyImageApi(Attributes dcmAttributes, Map<String, String> sensitiveData,
 			String tsuid) {
 		// Extract pixel data bytes from the DICOM instance
-		byte[] imageBytes = this.extractPixelDataBytes(dcmAttributes);
+		byte[] imageBytes = extractPixelDataBytes(dcmAttributes);
 		if (imageBytes.length == 0) {
 			log.warn("Could not extract pixel data from DICOM instance — skipping API call");
 			return Collections.emptyList();
@@ -135,7 +137,7 @@ public class DeidentifyImageService {
 		// Serialize the sensitive data map to JSON
 		String sensitiveDataJson;
 		try {
-			sensitiveDataJson = this.objectMapper.writeValueAsString(sensitiveData);
+			sensitiveDataJson = objectMapper.writeValueAsString(sensitiveData);
 		}
 		catch (JsonProcessingException ex) {
 			log.error("Failed to serialize sensitive data to JSON", ex);
@@ -143,13 +145,13 @@ public class DeidentifyImageService {
 		}
 
 		// Build the multipart request body
-		MultiValueMap<String, HttpEntity<?>> multipartBody = this.generateMultipartBody(dcmAttributes, imageBytes,
+		MultiValueMap<String, HttpEntity<?>> multipartBody = generateMultipartBody(dcmAttributes, imageBytes,
 				sensitiveDataJson, tsuid);
 
 		// Send the POST request and get the JSON response
 		String jsonResponse;
 		try {
-			jsonResponse = this.restClient.post()
+			jsonResponse = restClient.post()
 				.uri("/deidentify-image")
 				.contentType(MediaType.MULTIPART_FORM_DATA)
 				.body(multipartBody)
@@ -173,7 +175,7 @@ public class DeidentifyImageService {
 		catch (ResourceAccessException ex) {
 			throw new DeidentifyImageException(
 					String.format("Cannot reach de-identification image API at %s — service is unavailable: %s",
-							this.apiBaseUrl, ex.getMessage()),
+							apiBaseUrl, ex.getMessage()),
 					ex);
 		}
 		catch (Exception ex) {
@@ -189,7 +191,7 @@ public class DeidentifyImageService {
 		// Parse the JSON response
 		// Check the SOP UID
 		// Extract the masks field
-		return this.extractMasksFromJson(jsonResponse, dcmAttributes.getString(Tag.SOPInstanceUID));
+		return extractMasksFromJson(jsonResponse, dcmAttributes.getString(Tag.SOPInstanceUID));
 	}
 
 	/**
@@ -215,18 +217,18 @@ public class DeidentifyImageService {
 
 		String sensitiveDataJson;
 		try {
-			sensitiveDataJson = this.objectMapper.writeValueAsString(sensitiveData);
+			sensitiveDataJson = objectMapper.writeValueAsString(sensitiveData);
 		}
 		catch (JsonProcessingException ex) {
 			throw new DeidentifyImageException("Failed to serialize sensitive data to JSON for the reporting API", ex);
 		}
 
-		MultiValueMap<String, HttpEntity<?>> multipartBody = this.generateMultipartBody(metadata, imageBytes,
+		MultiValueMap<String, HttpEntity<?>> multipartBody = generateMultipartBody(metadata, imageBytes,
 				sensitiveDataJson, tsuid);
 
 		String jsonResponse;
 		try {
-			jsonResponse = this.restClient.post()
+			jsonResponse = restClient.post()
 				.uri("/reporting")
 				.contentType(MediaType.MULTIPART_FORM_DATA)
 				.body(multipartBody)
@@ -248,7 +250,7 @@ public class DeidentifyImageService {
 		}
 		catch (ResourceAccessException ex) {
 			throw new DeidentifyImageException(
-					String.format("Cannot reach reporting API at %s - service is unavailable: %s", this.apiBaseUrl,
+					String.format("Cannot reach reporting API at %s - service is unavailable: %s", apiBaseUrl,
 							ex.getMessage()),
 					ex);
 		}
@@ -256,7 +258,7 @@ public class DeidentifyImageService {
 			throw new DeidentifyImageException("Unexpected error calling reporting API: " + ex.getMessage(), ex);
 		}
 
-		return this.extractDetectedTagsFromJson(jsonResponse, sopInstanceUid);
+		return extractDetectedTagsFromJson(jsonResponse, sopInstanceUid);
 	}
 
 	/**
@@ -273,7 +275,7 @@ public class DeidentifyImageService {
 
 		ReportingResponse response;
 		try {
-			response = this.objectMapper.readValue(jsonContent, ReportingResponse.class);
+			response = objectMapper.readValue(jsonContent, ReportingResponse.class);
 		}
 		catch (Exception ex) {
 			throw new DeidentifyImageException("Failed to parse JSON response from the reporting API", ex);
@@ -293,7 +295,7 @@ public class DeidentifyImageService {
 			String sensitiveDataJson, String tsuid) {
 		MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
 
-		TransferSyntaxMapping mapping = this.resolveMapping(tsuid);
+		TransferSyntaxMapping mapping = resolveMapping(tsuid);
 		bodyBuilder.part("image", new ByteArrayResource(imageBytes) {
 			@Override
 			public String getFilename() {
@@ -301,40 +303,40 @@ public class DeidentifyImageService {
 			}
 		}).contentType(mapping.mediaType());
 
-		this.addTextPart(bodyBuilder, "sensitive_data_list", sensitiveDataJson);
-		this.addTextPart(bodyBuilder, "sop_instance_uid", dcmAttributes.getString(Tag.SOPInstanceUID));
-		this.addTextPart(bodyBuilder, "transfer_syntax_uid", tsuid);
+		addTextPart(bodyBuilder, "sensitive_data_list", sensitiveDataJson);
+		addTextPart(bodyBuilder, "sop_instance_uid", dcmAttributes.getString(Tag.SOPInstanceUID));
+		addTextPart(bodyBuilder, "transfer_syntax_uid", tsuid);
 
-		this.addTextPart(bodyBuilder, "rows", dcmAttributes.getInt(Tag.Rows, 0));
-		this.addTextPart(bodyBuilder, "columns", dcmAttributes.getInt(Tag.Columns, 0));
-		this.addTextPart(bodyBuilder, "bits_allocated", dcmAttributes.getInt(Tag.BitsAllocated, 0));
-		this.addTextPart(bodyBuilder, "samples_per_pixel", dcmAttributes.getInt(Tag.SamplesPerPixel, 0));
-		this.addTextPart(bodyBuilder, "photometric_interpretation",
+		addTextPart(bodyBuilder, "rows", dcmAttributes.getInt(Tag.Rows, 0));
+		addTextPart(bodyBuilder, "columns", dcmAttributes.getInt(Tag.Columns, 0));
+		addTextPart(bodyBuilder, "bits_allocated", dcmAttributes.getInt(Tag.BitsAllocated, 0));
+		addTextPart(bodyBuilder, "samples_per_pixel", dcmAttributes.getInt(Tag.SamplesPerPixel, 0));
+		addTextPart(bodyBuilder, "photometric_interpretation",
 				dcmAttributes.getString(Tag.PhotometricInterpretation));
 
 		if (mapping.filename().endsWith(".raw")) {
-			this.addRawPixelDataParts(bodyBuilder, dcmAttributes);
+			addRawPixelDataParts(bodyBuilder, dcmAttributes);
 		}
 
 		return bodyBuilder.build();
 	}
 
 	private void addRawPixelDataParts(MultipartBodyBuilder bodyBuilder, Attributes attrs) {
-		this.addOptionalDoublePart(bodyBuilder, attrs, "rescale_slope", Tag.RescaleSlope, 1.0);
-		this.addOptionalDoublePart(bodyBuilder, attrs, "rescale_intercept", Tag.RescaleIntercept, 0.0);
-		this.addOptionalDoublePart(bodyBuilder, attrs, "window_center", Tag.WindowCenter, 0.0);
-		this.addOptionalDoublePart(bodyBuilder, attrs, "window_width", Tag.WindowWidth, 0.0);
+		addOptionalDoublePart(bodyBuilder, attrs, "rescale_slope", Tag.RescaleSlope, 1.0);
+		addOptionalDoublePart(bodyBuilder, attrs, "rescale_intercept", Tag.RescaleIntercept, 0.0);
+		addOptionalDoublePart(bodyBuilder, attrs, "window_center", Tag.WindowCenter, 0.0);
+		addOptionalDoublePart(bodyBuilder, attrs, "window_width", Tag.WindowWidth, 0.0);
 
-		String paletteLutJson = this.buildPaletteColorLutJson(attrs);
+		String paletteLutJson = buildPaletteColorLutJson(attrs);
 		if (paletteLutJson != null) {
-			this.addTextPart(bodyBuilder, "palette_color_lut", paletteLutJson);
+			addTextPart(bodyBuilder, "palette_color_lut", paletteLutJson);
 		}
 	}
 
 	private void addOptionalDoublePart(MultipartBodyBuilder bodyBuilder, Attributes attrs, String name, int tag,
 			double defaultValue) {
 		if (attrs.containsValue(tag)) {
-			this.addTextPart(bodyBuilder, name, attrs.getDouble(tag, defaultValue));
+			addTextPart(bodyBuilder, name, attrs.getDouble(tag, defaultValue));
 		}
 	}
 
@@ -355,7 +357,7 @@ public class DeidentifyImageService {
 		}
 
 		try {
-			DeidentifyImageResponse response = this.objectMapper.readValue(jsonContent, DeidentifyImageResponse.class);
+			DeidentifyImageResponse response = objectMapper.readValue(jsonContent, DeidentifyImageResponse.class);
 
 			if (response.sopInstanceUid() == null) {
 				log.error("The SOP Instance UID in the API response is null");
@@ -464,9 +466,9 @@ public class DeidentifyImageService {
 			return null;
 		}
 
-		int[] redLut = this.extractLutData(dcmAttributes, Tag.RedPaletteColorLookupTableData, redDesc);
-		int[] greenLut = this.extractLutData(dcmAttributes, Tag.GreenPaletteColorLookupTableData, greenDesc);
-		int[] blueLut = this.extractLutData(dcmAttributes, Tag.BluePaletteColorLookupTableData, blueDesc);
+		int[] redLut = extractLutData(dcmAttributes, Tag.RedPaletteColorLookupTableData, redDesc);
+		int[] greenLut = extractLutData(dcmAttributes, Tag.GreenPaletteColorLookupTableData, greenDesc);
+		int[] blueLut = extractLutData(dcmAttributes, Tag.BluePaletteColorLookupTableData, blueDesc);
 		if (redLut.length == 0 || greenLut.length == 0 || blueLut.length == 0) {
 			log.warn("PALETTE COLOR photometric but missing LUT data");
 			return null;
@@ -478,7 +480,7 @@ public class DeidentifyImageService {
 		lutMap.put("blue", blueLut);
 
 		try {
-			return this.objectMapper.writeValueAsString(lutMap);
+			return objectMapper.writeValueAsString(lutMap);
 		}
 		catch (JsonProcessingException ex) {
 			log.error("Failed to serialize Palette Color LUT to JSON", ex);
