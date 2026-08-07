@@ -105,7 +105,7 @@ public class StudyConformanceAccumulator {
 	 * @return false when this accumulator is already closed — the instance was not added
 	 */
 	public synchronized boolean add(InstanceConformanceData data, InstanceValidationResult result, Instant now) {
-		return this.add(data, result, null, now);
+		return add(data, result, null, now);
 	}
 
 	/**
@@ -115,36 +115,36 @@ public class StudyConformanceAccumulator {
 	 */
 	public synchronized boolean add(InstanceConformanceData data, InstanceValidationResult result,
 			ImageIdentityCheckOutcome identityOutcome, Instant now) {
-		if (this.closed) {
+		if (closed) {
 			return false;
 		}
-		this.lastUpdatedAt = now;
+		lastUpdatedAt = now;
 		var metadata = data.snapshot().metadata();
-		this.patientId = firstNonEmpty(this.patientId, data.snapshot().metadata().getString(Tag.PatientID, ""));
-		this.studyDate = firstNonEmpty(this.studyDate, metadata.getString(Tag.StudyDate, ""));
-		this.studyDescription = firstNonEmpty(this.studyDescription, metadata.getString(Tag.StudyDescription, ""));
-		this.accessionNumber = firstNonEmpty(this.accessionNumber, metadata.getString(Tag.AccessionNumber, ""));
+		patientId = firstNonEmpty(patientId, data.snapshot().metadata().getString(Tag.PatientID, ""));
+		studyDate = firstNonEmpty(studyDate, metadata.getString(Tag.StudyDate, ""));
+		studyDescription = firstNonEmpty(studyDescription, metadata.getString(Tag.StudyDescription, ""));
+		accessionNumber = firstNonEmpty(accessionNumber, metadata.getString(Tag.AccessionNumber, ""));
 
-		this.studyUidsSeen.add(data.studyUid());
-		this.patientIds.add(metadata.getString(Tag.PatientID, ""));
+		studyUidsSeen.add(data.studyUid());
+		patientIds.add(metadata.getString(Tag.PatientID, ""));
 		// Patient Name is real PHI when the destination does not de-identify: do not
 		// collect
 		// it, so it leaks neither into the header nor into the identity-consistency check
-		if (this.deidentified) {
-			this.patientName = firstNonEmpty(this.patientName, metadata.getString(Tag.PatientName, ""));
-			this.patientNames.add(metadata.getString(Tag.PatientName, ""));
+		if (deidentified) {
+			patientName = firstNonEmpty(patientName, metadata.getString(Tag.PatientName, ""));
+			patientNames.add(metadata.getString(Tag.PatientName, ""));
 		}
 		if (!data.modality().isEmpty()) {
-			this.modalities.add(data.modality());
+			modalities.add(data.modality());
 		}
 		if (!data.sopClassUid().isEmpty()) {
-			this.sopClassUids.add(data.sopClassUid());
+			sopClassUids.add(data.sopClassUid());
 		}
 		if (data.transferSyntaxUid() != null && !data.transferSyntaxUid().isEmpty()) {
-			this.transferSyntaxUids.add(data.transferSyntaxUid());
+			transferSyntaxUids.add(data.transferSyntaxUid());
 		}
 
-		SeriesData series = this.seriesByUid.computeIfAbsent(data.seriesUid(), uid -> new SeriesData());
+		SeriesData series = seriesByUid.computeIfAbsent(data.seriesUid(), uid -> new SeriesData());
 		series.modality = firstNonEmpty(series.modality, data.modality());
 		if (!data.sopClassUid().isEmpty()) {
 			series.sopClassUids.add(data.sopClassUid());
@@ -156,14 +156,14 @@ public class StudyConformanceAccumulator {
 		}
 
 		if (!data.sent()) {
-			this.failedInstanceCount++;
-			if (data.failureReason() != null && this.failureReasons.size() < MAX_FAILURE_REASONS) {
-				this.failureReasons.add(data.failureReason());
+			failedInstanceCount++;
+			if (data.failureReason() != null && failureReasons.size() < MAX_FAILURE_REASONS) {
+				failureReasons.add(data.failureReason());
 			}
 		}
 
 		if (result != null) {
-			Map<ConformanceFinding, FindingStats> findings = this.findingsBySopClass.computeIfAbsent(data.sopClassUid(),
+			Map<ConformanceFinding, FindingStats> findings = findingsBySopClass.computeIfAbsent(data.sopClassUid(),
 					uid -> new LinkedHashMap<>());
 			for (ConformanceFinding finding : result.findings()) {
 				findings.computeIfAbsent(finding, f -> new FindingStats(data.sopInstanceUid())).count++;
@@ -172,12 +172,12 @@ public class StudyConformanceAccumulator {
 
 		if (identityOutcome != null) {
 			if (identityOutcome.failed()) {
-				this.imageIdentityCheckErrors++;
+				imageIdentityCheckErrors++;
 			}
 			else {
-				this.imageIdentityCheckedInstances++;
+				imageIdentityCheckedInstances++;
 				for (String tag : identityOutcome.detectedTags()) {
-					this.detectedIdentityTags.merge(tag, 1, Integer::sum);
+					detectedIdentityTags.merge(tag, 1, Integer::sum);
 				}
 			}
 		}
@@ -189,11 +189,11 @@ public class StudyConformanceAccumulator {
 	 * immutable report. Subsequent {@link #add} calls are rejected.
 	 */
 	public synchronized ConformanceReport close() {
-		this.closed = true;
+		closed = true;
 		List<ConformanceFinding> consistencyFindings = StudyConsistencyChecker.check(this);
 
 		Map<String, List<FindingSummary>> summariesBySopClass = new LinkedHashMap<>();
-		this.findingsBySopClass.forEach((sopClassUid, findings) -> {
+		findingsBySopClass.forEach((sopClassUid, findings) -> {
 			List<FindingSummary> summaries = new ArrayList<>(findings.size());
 			findings.forEach((finding, stats) -> summaries
 				.add(new FindingSummary(finding, stats.count, stats.exampleSopInstanceUid)));
@@ -204,32 +204,32 @@ public class StudyConformanceAccumulator {
 		int errorCount = countBySeverity(summariesBySopClass, consistencyFindings, Severity.ERROR);
 		int warningCount = countBySeverity(summariesBySopClass, consistencyFindings, Severity.WARNING);
 		int infoCount = countBySeverity(summariesBySopClass, consistencyFindings, Severity.INFO);
-		int instanceCount = this.seriesByUid.values().stream().mapToInt(series -> series.sopInstanceUids.size()).sum();
+		int instanceCount = seriesByUid.values().stream().mapToInt(series -> series.sopInstanceUids.size()).sum();
 
-		List<SeriesSummary> series = this.seriesByUid.entrySet()
+		List<SeriesSummary> series = seriesByUid.entrySet()
 			.stream()
 			.map(entry -> new SeriesSummary(entry.getKey(), entry.getValue().modality,
 					Set.copyOf(entry.getValue().sopClassUids), entry.getValue().sopInstanceUids.size()))
 			.toList();
 
-		return new ConformanceReport(this.key, this.sourceAet, this.deidentified, this.patientId, this.patientName, this.studyDate, this.studyDescription,
-			this.accessionNumber, this.seriesByUid.size(), instanceCount, this.failedInstanceCount, List.copyOf(this.failureReasons),
-				Set.copyOf(this.modalities), Set.copyOf(this.sopClassUids), Set.copyOf(this.transferSyntaxUids), series,
+		return new ConformanceReport(key, sourceAet, deidentified, patientId, patientName, studyDate, studyDescription,
+			accessionNumber, seriesByUid.size(), instanceCount, failedInstanceCount, List.copyOf(failureReasons),
+				Set.copyOf(modalities), Set.copyOf(sopClassUids), Set.copyOf(transferSyntaxUids), series,
 				summariesBySopClass, consistencyFindings, errorCount, warningCount, infoCount, errorCount == 0,
-			this.createdAt, this.lastUpdatedAt, Map.copyOf(this.detectedIdentityTags), this.imageIdentityCheckedInstances,
-			this.imageIdentityCheckErrors);
+			createdAt, lastUpdatedAt, Map.copyOf(detectedIdentityTags), imageIdentityCheckedInstances,
+			imageIdentityCheckErrors);
 	}
 
 	public synchronized Instant getLastUpdatedAt() {
-		return this.lastUpdatedAt;
+		return lastUpdatedAt;
 	}
 
 	public Instant getCreatedAt() {
-		return this.createdAt;
+		return createdAt;
 	}
 
 	public StudyKey getKey() {
-		return this.key;
+		return key;
 	}
 
 	/** Counts finding occurrences (a finding hitting N instances counts N times). */
@@ -251,27 +251,27 @@ public class StudyConformanceAccumulator {
 
 	// Accessors for the consistency checker (same package)
 	CuratedValidationRules rules() {
-		return this.rules;
+		return rules;
 	}
 
 	Set<String> studyUidsSeen() {
-		return this.studyUidsSeen;
+		return studyUidsSeen;
 	}
 
 	Set<String> patientIds() {
-		return this.patientIds;
+		return patientIds;
 	}
 
 	Set<String> patientNames() {
-		return this.patientNames;
+		return patientNames;
 	}
 
 	Set<String> transferSyntaxUids() {
-		return this.transferSyntaxUids;
+		return transferSyntaxUids;
 	}
 
 	Map<String, SeriesData> seriesByUid() {
-		return this.seriesByUid;
+		return seriesByUid;
 	}
 
 	/** Lightweight per-series accumulation. */

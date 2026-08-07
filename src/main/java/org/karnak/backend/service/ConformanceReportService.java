@@ -118,7 +118,7 @@ public class ConformanceReportService {
 		this.destinationRepo = destinationRepo;
 		this.deidentifyImageService = deidentifyImageService;
 		this.rules = CuratedValidationRules.load();
-		this.validator = new DicomConformanceValidator(standardDICOM, this.rules);
+		this.validator = new DicomConformanceValidator(standardDICOM, rules);
 	}
 
 	/**
@@ -129,23 +129,23 @@ public class ConformanceReportService {
 	public void onConformanceCollect(ConformanceCollectEvent event) {
 		InstanceConformanceData data = event.getInstanceConformanceData();
 		try {
-			int depth = data.deepSequenceValidation() ? this.maxSequenceDepth
+			int depth = data.deepSequenceValidation() ? maxSequenceDepth
 					: DicomConformanceValidator.DEFAULT_MAX_SEQUENCE_DEPTH;
 			InstanceValidationResult result = data.sent()
-					? this.validator.validate(data.snapshot().metadata(), data.snapshot().bulkPresentTags(),
+					? validator.validate(data.snapshot().metadata(), data.snapshot().bulkPresentTags(),
 							data.transferSyntaxUid(), data.checkValueConformity(), depth, data.deidentified())
 					: null;
-			ImageIdentityCheckOutcome identityOutcome = this.checkImageIdentity(data);
-			Instant now = this.clock.instant();
+			ImageIdentityCheckOutcome identityOutcome = checkImageIdentity(data);
+			Instant now = clock.instant();
 			// A concurrent flush may close the accumulator between lookup and add: retry
 			// with a fresh one (the late instances produce a small follow-up report)
 			while (true) {
-				StudyConformanceAccumulator accumulator = this.studies.computeIfAbsent(data.studyKey(),
-						key -> new StudyConformanceAccumulator(key, data.sourceAet(), data.deidentified(), this.rules, now));
+				StudyConformanceAccumulator accumulator = studies.computeIfAbsent(data.studyKey(),
+						key -> new StudyConformanceAccumulator(key, data.sourceAet(), data.deidentified(), rules, now));
 				if (accumulator.add(data, result, identityOutcome, now)) {
 					return;
 				}
-				this.studies.remove(data.studyKey(), accumulator);
+				studies.remove(data.studyKey(), accumulator);
 			}
 		}
 		catch (Exception e) {
@@ -181,16 +181,16 @@ public class ConformanceReportService {
 	 */
 	@Scheduled(fixedDelay = 60 * 1000)
 	public void flushIdleStudies() {
-		Instant now = this.clock.instant();
-		for (StudyKey key : Set.copyOf(this.studies.keySet())) {
-			StudyConformanceAccumulator accumulator = this.studies.get(key);
+		Instant now = clock.instant();
+		for (StudyKey key : Set.copyOf(studies.keySet())) {
+			StudyConformanceAccumulator accumulator = studies.get(key);
 			if (accumulator == null) {
 				continue;
 			}
-			boolean idle = accumulator.getLastUpdatedAt().plusSeconds(this.idleTimeoutSeconds).isBefore(now);
-			boolean expired = accumulator.getCreatedAt().plusSeconds(this.maxStudyLifetimeSeconds).isBefore(now);
+			boolean idle = accumulator.getLastUpdatedAt().plusSeconds(idleTimeoutSeconds).isBefore(now);
+			boolean expired = accumulator.getCreatedAt().plusSeconds(maxStudyLifetimeSeconds).isBefore(now);
 			if (idle || expired) {
-				this.closeAndSend(key, accumulator);
+				closeAndSend(key, accumulator);
 			}
 		}
 	}
@@ -198,15 +198,15 @@ public class ConformanceReportService {
 	/** Flushes every pending study, e.g. on shutdown. */
 	@PreDestroy
 	public void flushAll() {
-		this.studies.forEach(this::closeAndSend);
+		studies.forEach(this::closeAndSend);
 	}
 
 	private void closeAndSend(StudyKey key, StudyConformanceAccumulator accumulator) {
-		if (!this.studies.remove(key, accumulator)) {
+		if (!studies.remove(key, accumulator)) {
 			return;
 		}
 		try {
-			this.sendReport(accumulator.close());
+			sendReport(accumulator.close());
 		}
 		catch (Exception e) {
 			log.error("Cannot send the conformance report of study {} to destination {}", key.studyInstanceUid(),
@@ -215,7 +215,7 @@ public class ConformanceReportService {
 	}
 
 	private void sendReport(ConformanceReport report) throws Exception {
-		DestinationEntity destinationEntity = this.destinationRepo.findById(report.key().destinationId()).orElse(null);
+		DestinationEntity destinationEntity = destinationRepo.findById(report.key().destinationId()).orElse(null);
 		if (destinationEntity == null) {
 			log.warn("Conformance report dropped: destination {} no longer exists", report.key().destinationId());
 			return;
@@ -230,13 +230,13 @@ public class ConformanceReportService {
 			return;
 		}
 
-		MimeMessage mimeMessage = this.javaMailSender.createMimeMessage();
+		MimeMessage mimeMessage = javaMailSender.createMimeMessage();
 		MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "UTF-8");
-		helper.setSubject(this.buildSubject(report));
-		helper.setText(this.renderReport(report, destinationEntity), true);
+		helper.setSubject(buildSubject(report));
+		helper.setText(renderReport(report, destinationEntity), true);
 		helper.setTo(InternetAddress.parse(recipients));
-		helper.setFrom(this.mailSender);
-		this.javaMailSender.send(mimeMessage);
+		helper.setFrom(mailSender);
+		javaMailSender.send(mimeMessage);
 		log.info("Conformance report of study {} sent for destination {}", report.key().studyInstanceUid(),
 				report.key().destinationId());
 	}
@@ -245,13 +245,13 @@ public class ConformanceReportService {
 		Context context = new Context();
 		context.setVariable("report", report);
 		context.setVariable("destinationDescription", describeDestination(destinationEntity));
-		context.setVariable("karnakVersion", this.karnakVersion);
-		context.setVariable("dicomStandardSource", this.rules.getDicomStandardSource());
-		context.setVariable("generatedAt", TIMESTAMP_FORMAT.withZone(ZoneId.systemDefault()).format(this.clock.instant()));
+		context.setVariable("karnakVersion", karnakVersion);
+		context.setVariable("dicomStandardSource", rules.getDicomStandardSource());
+		context.setVariable("generatedAt", TIMESTAMP_FORMAT.withZone(ZoneId.systemDefault()).format(clock.instant()));
 		context.setVariable("sopClassNames", uidNames(report.sopClassUids()));
 		context.setVariable("transferSyntaxNames", uidNames(report.transferSyntaxUids()));
 		context.setVariable("imageIdentityCheckEnabled", destinationEntity.isImageIdentityCheck());
-		return this.templateEngine.process(TEMPLATE_THYMELEAF, context);
+		return templateEngine.process(TEMPLATE_THYMELEAF, context);
 	}
 
 	String buildSubject(ConformanceReport report) {
@@ -282,7 +282,7 @@ public class ConformanceReportService {
 	}
 
 	Map<StudyKey, StudyConformanceAccumulator> getStudies() {
-		return this.studies;
+		return studies;
 	}
 
 }

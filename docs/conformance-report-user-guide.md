@@ -67,7 +67,7 @@ dropped (a warning is logged).
 > option calls the external de-identification image (OCR) service, so that
 > service must be running and reachable from Karnak at `OCR_URL` (default
 > `http://localhost:8000`). When it is unreachable the images cannot be analysed
-> and the report notes them as *not analysed*; the rest of the conformance report
+> and the report notes them as *not analysed*. The rest of the conformance report
 > is unaffected. This prerequisite does **not** apply to the other report
 > options.
 
