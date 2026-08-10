@@ -156,8 +156,7 @@ public class ConformanceReportService {
 	/**
 	 * Queries the de-identification image API for identifying data still burned into the
 	 * forwarded image. Returns {@code null} when the destination did not request the
-	 * check (or the instance carried no readable pixel data), and a failed outcome when
-	 * the API could not be reached.
+	 * check, and a failed outcome when the API could not be reached.
 	 */
 	private ImageIdentityCheckOutcome checkImageIdentity(InstanceConformanceData data) {
 		ImageIdentityCheckInput input = data.imageIdentityCheckInput();
@@ -165,7 +164,7 @@ public class ConformanceReportService {
 			return null;
 		}
 		try {
-			List<String> detectedTags = this.deidentifyImageService.callReportingApi(data.snapshot().metadata(),
+			List<String> detectedTags = deidentifyImageService.callReportingApi(data.snapshot().metadata(),
 					input.imageBytes(), input.sensitiveData(), input.transferSyntaxUid(), data.sopInstanceUid());
 			return ImageIdentityCheckOutcome.detected(detectedTags);
 		}
