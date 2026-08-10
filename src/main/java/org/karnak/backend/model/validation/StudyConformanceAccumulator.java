@@ -155,33 +155,46 @@ public class StudyConformanceAccumulator {
 			series.frameOfReferenceUids.add(frameOfReferenceUid);
 		}
 
-		if (!data.sent()) {
-			failedInstanceCount++;
-			if (data.failureReason() != null && failureReasons.size() < MAX_FAILURE_REASONS) {
-				failureReasons.add(data.failureReason());
-			}
-		}
-
-		if (result != null) {
-			Map<ConformanceFinding, FindingStats> findings = findingsBySopClass.computeIfAbsent(data.sopClassUid(),
-					uid -> new LinkedHashMap<>());
-			for (ConformanceFinding finding : result.findings()) {
-				findings.computeIfAbsent(finding, f -> new FindingStats(data.sopInstanceUid())).count++;
-			}
-		}
-
-		if (identityOutcome != null) {
-			if (identityOutcome.failed()) {
-				imageIdentityCheckErrors++;
-			}
-			else {
-				imageIdentityCheckedInstances++;
-				for (String tag : identityOutcome.detectedTags()) {
-					detectedIdentityTags.merge(tag, 1, Integer::sum);
-				}
-			}
-		}
+		recordFailure(data);
+		recordFindings(data, result);
+		recordIdentityOutcome(identityOutcome);
 		return true;
+	}
+
+	// Called only from the synchronized add(...) overload, so no extra locking is needed.
+	private void recordFailure(InstanceConformanceData data) {
+		if (data.sent()) {
+			return;
+		}
+		failedInstanceCount++;
+		if (data.failureReason() != null && failureReasons.size() < MAX_FAILURE_REASONS) {
+			failureReasons.add(data.failureReason());
+		}
+	}
+
+	private void recordFindings(InstanceConformanceData data, InstanceValidationResult result) {
+		if (result == null) {
+			return;
+		}
+		Map<ConformanceFinding, FindingStats> findings = findingsBySopClass.computeIfAbsent(data.sopClassUid(),
+				uid -> new LinkedHashMap<>());
+		for (ConformanceFinding finding : result.findings()) {
+			findings.computeIfAbsent(finding, f -> new FindingStats(data.sopInstanceUid())).count++;
+		}
+	}
+
+	private void recordIdentityOutcome(ImageIdentityCheckOutcome identityOutcome) {
+		if (identityOutcome == null) {
+			return;
+		}
+		if (identityOutcome.failed()) {
+			imageIdentityCheckErrors++;
+			return;
+		}
+		imageIdentityCheckedInstances++;
+		for (String tag : identityOutcome.detectedTags()) {
+			detectedIdentityTags.merge(tag, 1, Integer::sum);
+		}
 	}
 
 	/**

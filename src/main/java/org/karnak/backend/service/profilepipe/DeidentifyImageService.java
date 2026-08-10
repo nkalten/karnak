@@ -149,39 +149,7 @@ public class DeidentifyImageService {
 				sensitiveDataJson, tsuid);
 
 		// Send the POST request and get the JSON response
-		String jsonResponse;
-		try {
-			jsonResponse = restClient.post()
-				.uri("/deidentify-image")
-				.contentType(MediaType.MULTIPART_FORM_DATA)
-				.body(multipartBody)
-				.accept(MediaType.parseMediaType("application/json; version=1"))
-				.retrieve()
-				.body(String.class);
-		}
-		catch (HttpClientErrorException ex) {
-			// Errors 4xx
-			throw new DeidentifyImageException(
-					String.format("Client error %s from de-identification image API — check the request format: %s",
-							ex.getStatusCode(), ex.getMessage()),
-					ex);
-		}
-		catch (HttpServerErrorException ex) {
-			// Errors 5xx
-			throw new DeidentifyImageException(String.format(
-					"Server error %s from de-identification image API — service may be temporarily unavailable",
-					ex.getStatusCode()), ex);
-		}
-		catch (ResourceAccessException ex) {
-			throw new DeidentifyImageException(
-					String.format("Cannot reach de-identification image API at %s — service is unavailable: %s",
-							apiBaseUrl, ex.getMessage()),
-					ex);
-		}
-		catch (Exception ex) {
-			throw new DeidentifyImageException(
-					"Unexpected error calling de-identification image API: " + ex.getMessage(), ex);
-		}
+		String jsonResponse = postMultipart("/deidentify-image", "de-identification image API", multipartBody);
 
 		if (jsonResponse == null) {
 			log.warn("Empty response body from de-identification image API — no masks to apply");
@@ -226,10 +194,23 @@ public class DeidentifyImageService {
 		MultiValueMap<String, HttpEntity<?>> multipartBody = generateMultipartBody(metadata, imageBytes,
 				sensitiveDataJson, tsuid);
 
-		String jsonResponse;
+		String jsonResponse = postMultipart("/reporting", "reporting API", multipartBody);
+
+		return extractDetectedTagsFromJson(jsonResponse, sopInstanceUid);
+	}
+
+	/**
+	 * Sends the multipart body to {@code endpoint} and returns the raw JSON response body.
+	 * Transport failures and HTTP error responses are translated into
+	 * {@link DeidentifyImageException}, with {@code apiLabel} identifying the target API in
+	 * the message.
+	 * @return the response body, or {@code null} when the API returned an empty body
+	 */
+	private @Nullable String postMultipart(String endpoint, String apiLabel,
+			MultiValueMap<String, HttpEntity<?>> multipartBody) {
 		try {
-			jsonResponse = restClient.post()
-				.uri("/reporting")
+			return restClient.post()
+				.uri(endpoint)
 				.contentType(MediaType.MULTIPART_FORM_DATA)
 				.body(multipartBody)
 				.accept(MediaType.parseMediaType("application/json; version=1"))
@@ -237,28 +218,23 @@ public class DeidentifyImageService {
 				.body(String.class);
 		}
 		catch (HttpClientErrorException ex) {
-			throw new DeidentifyImageException(
-					String.format("Client error %s from reporting API - check the request format: %s",
-							ex.getStatusCode(), ex.getMessage()),
-					ex);
+			// Errors 4xx
+			throw new DeidentifyImageException(String.format("Client error %s from %s - check the request format: %s",
+					ex.getStatusCode(), apiLabel, ex.getMessage()), ex);
 		}
 		catch (HttpServerErrorException ex) {
-			throw new DeidentifyImageException(
-					String.format("Server error %s from reporting API - service may be temporarily unavailable",
-							ex.getStatusCode()),
+			// Errors 5xx
+			throw new DeidentifyImageException(String.format(
+					"Server error %s from %s - service may be temporarily unavailable", ex.getStatusCode(), apiLabel),
 					ex);
 		}
 		catch (ResourceAccessException ex) {
-			throw new DeidentifyImageException(
-					String.format("Cannot reach reporting API at %s - service is unavailable: %s", apiBaseUrl,
-							ex.getMessage()),
-					ex);
+			throw new DeidentifyImageException(String.format("Cannot reach %s at %s - service is unavailable: %s",
+					apiLabel, apiBaseUrl, ex.getMessage()), ex);
 		}
 		catch (Exception ex) {
-			throw new DeidentifyImageException("Unexpected error calling reporting API: " + ex.getMessage(), ex);
+			throw new DeidentifyImageException("Unexpected error calling " + apiLabel + ": " + ex.getMessage(), ex);
 		}
-
-		return extractDetectedTagsFromJson(jsonResponse, sopInstanceUid);
 	}
 
 	/**
