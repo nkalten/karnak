@@ -9,7 +9,9 @@
  */
 package org.karnak.backend.model.validation;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Encoded pixel data and original identifying values captured on the forwarding thread so
@@ -21,4 +23,35 @@ import java.util.Map;
  * @param transferSyntaxUid the transfer syntax the {@code imageBytes} are encoded with
  */
 public record ImageIdentityCheckInput(byte[] imageBytes, Map<String, String> sensitiveData, String transferSyntaxUid) {
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) {
+			return true;
+		}
+		if (!(o instanceof ImageIdentityCheckInput(byte[] bytes, Map<String, String> data, String syntaxUid))) {
+			return false;
+		}
+		return Arrays.equals(imageBytes, bytes)
+			&& Objects.equals(sensitiveData, data)
+			&& Objects.equals(transferSyntaxUid, syntaxUid);
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(
+			Arrays.hashCode(imageBytes),
+			sensitiveData,
+			transferSyntaxUid
+		);
+	}
+
+	@Override
+	public String toString() {
+		return "ImageIdentityCheckInput{" +
+				"imageBytes=" + (imageBytes == null ? null : imageBytes.length + " bytes") +
+				", sensitiveData=" + (sensitiveData == null ? null : sensitiveData.keySet()) +
+				", transferSyntaxUid='" + transferSyntaxUid + '\'' +
+				'}';
+	}
 }
