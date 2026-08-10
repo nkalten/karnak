@@ -413,27 +413,33 @@ public class DeidentifyImageService {
 			}
 		}
 		else if (pixelData instanceof Fragments fragments) {
-			// Fragments = compressed pixel data (JPEG, JPEG2000, etc.).
-			// Index 0 is the offset table (usually empty bytes), index 1+ are the
-			// actual compressed image frames. We extract the first actual frame.
-			if (fragments.size() > 1) {
-				Object frame = fragments.get(1);
-				if (frame instanceof byte[] bytes) {
-					return bytes;
+			return extractPixelDataBytesFromFragments(fragments);
+		}
+
+		log.warn("Pixel data is not BulkData or Fragments — cannot extract image bytes");
+		return EMPTY_BYTE_ARRAY;
+	}
+
+	private byte[] extractPixelDataBytesFromFragments(Fragments fragments) {
+		// Fragments = compressed pixel data (JPEG, JPEG2000, etc.).
+		// Index 0 is the offset table (usually empty bytes), index 1+ are the
+		// actual compressed image frames. We extract the first actual frame.
+		if (fragments.size() > 1) {
+			Object frame = fragments.get(1);
+			if (frame instanceof byte[] bytes) {
+				return bytes;
+			}
+			else if (frame instanceof BulkData frameBulkData) {
+				try {
+					return frameBulkData.toBytes(fragments.vr(), frameBulkData.bigEndian());
 				}
-				else if (frame instanceof BulkData frameBulkData) {
-					try {
-						return frameBulkData.toBytes(fragments.vr(), frameBulkData.bigEndian());
-					}
-					catch (IOException ex) {
-						log.error("Failed to read Fragments frame BulkData bytes", ex);
-						return EMPTY_BYTE_ARRAY;
-					}
+				catch (IOException ex) {
+					log.error("Failed to read Fragments frame BulkData bytes", ex);
+					return EMPTY_BYTE_ARRAY;
 				}
 			}
 		}
 
-		log.warn("Pixel data is not BulkData or Fragments — cannot extract image bytes");
 		return EMPTY_BYTE_ARRAY;
 	}
 
