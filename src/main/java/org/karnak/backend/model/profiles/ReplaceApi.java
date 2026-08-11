@@ -26,6 +26,7 @@ import org.karnak.backend.model.action.ActionItem;
 import org.karnak.backend.model.action.Replace;
 import org.karnak.backend.model.profilepipe.HMAC;
 import org.karnak.backend.model.profilepipe.TagActionMap;
+import org.karnak.backend.model.profilepipe.TagPath;
 import org.karnak.backend.service.ApplicationContextProvider;
 import org.karnak.backend.service.EndpointService;
 import org.springframework.web.client.HttpClientErrorException;
@@ -60,10 +61,15 @@ public class ReplaceApi extends AbstractProfileItem {
 
 	@Override
 	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
-		if (!tagsAction.isEmpty() && tagsAction.get(tag) == null) {
+		return getAction(dcm, original, tag, hmac, TagPath.ROOT);
+	}
+
+	@Override
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac, TagPath path) {
+		if (!tagsAction.isEmpty() && tagsAction.get(tag, path) == null) {
 			return null;
 		}
-		if (exceptedTagsAction.get(tag) != null) {
+		if (exceptedTagsAction.get(tag, path) != null) {
 			return null;
 		}
 
@@ -216,6 +222,7 @@ public class ReplaceApi extends AbstractProfileItem {
 			throw new ProfileException(errorMessage + "body argument is mandatory for a POST request");
 		}
 
+		validateTagPaths();
 		validateCondition();
 	}
 

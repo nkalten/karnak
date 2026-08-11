@@ -16,6 +16,7 @@ import org.karnak.backend.data.entity.ArgumentEntity;
 import org.karnak.backend.exception.ProfileException;
 import org.karnak.backend.model.action.ActionItem;
 import org.karnak.backend.model.profilepipe.HMAC;
+import org.karnak.backend.model.profilepipe.TagPath;
 
 /** One item of a de-identification or tag-morphing profile. */
 public interface ProfileItem {
@@ -51,6 +52,27 @@ public interface ProfileItem {
 	 * @return the action to apply, or {@code null} when this item does not apply
 	 */
 	@Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac);
+
+	/**
+	 * Same as {@link #getAction(Attributes, Attributes, int, HMAC)}, told in addition
+	 * <i>where</i> {@code tag} sits in the object.
+	 *
+	 * <p>
+	 * This is the method the pipeline calls. Only the items whose tags are configured by
+	 * the user need to override it — the ones that may be given a path such as
+	 * {@code (0040,0275).(0040,0007)} and must then apply only inside that sequence.
+	 * Items selecting a fixed set of standard tags are location independent and keep the
+	 * four-argument form, which this default delegates to.
+	 * @param dcm dataset being de-identified, at the nesting level of {@code tag}
+	 * @param original untouched copy of {@code dcm}
+	 * @param tag tag being visited
+	 * @param hmac hash context of the current patient
+	 * @param path sequences enclosing {@code tag}, {@link TagPath#ROOT} at the top level
+	 * @return the action to apply, or {@code null} when this item does not apply
+	 */
+	default @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac, TagPath path) {
+		return getAction(dcm, original, tag, hmac);
+	}
 
 	@Nullable ActionItem put(int tag, ActionItem action);
 

@@ -42,6 +42,7 @@ import org.karnak.backend.dicom.Defacer;
 import org.karnak.backend.enums.ProfileItemType;
 import org.karnak.backend.model.action.ActionItem;
 import org.karnak.backend.model.action.Add;
+import org.karnak.backend.model.action.AddInSequence;
 import org.karnak.backend.model.action.ExcludeInstance;
 import org.karnak.backend.model.action.Remove;
 import org.karnak.backend.model.action.ReplaceNull;
@@ -51,7 +52,9 @@ import org.karnak.backend.model.profilebody.MaskBody;
 import org.karnak.backend.model.profilepipe.HMAC;
 import org.karnak.backend.model.profilepipe.HashContext;
 import org.karnak.backend.model.profilepipe.SensitiveTagDefinition;
+import org.karnak.backend.model.profilepipe.TagPath;
 import org.karnak.backend.model.profiles.ActionTags;
+import org.karnak.backend.model.profiles.AddTag;
 import org.karnak.backend.model.profiles.CleanPixelData;
 import org.karnak.backend.model.profiles.Defacing;
 import org.karnak.backend.model.profiles.ProfileItem;
@@ -69,9 +72,16 @@ public class Profile {
 	private final List<ProfileItem> profiles;
 
 	/**
-	 * {@link #profiles} without the {@link CleanPixelData} items, applied on every tag.
+	 * {@link #profiles} without the items that are not applied while visiting a tag: the
+	 * {@link CleanPixelData} ones and the {@link #sequenceAddProfiles}.
 	 */
 	private final List<ProfileItem> tagProfiles;
+
+	/**
+	 * The items adding an attribute inside a sequence. They are applied once the object
+	 * has been walked, see {@link #applyAddInSequence}.
+	 */
+	private final List<AddTag> sequenceAddProfiles;
 
 	private final Pseudonym pseudonym;
 
@@ -98,7 +108,15 @@ public class Profile {
 		this.pseudonym = new Pseudonym();
 		this.deidentifyImageService = deidentifyImageService;
 		this.profiles = this.createProfilesList(profileEntity);
-		this.tagProfiles = this.profiles.stream().filter(p -> !(p instanceof CleanPixelData)).toList();
+		this.sequenceAddProfiles = this.profiles.stream()
+			.filter(AddTag.class::isInstance)
+			.map(AddTag.class::cast)
+			.filter(AddTag::targetsSequence)
+			.toList();
+		this.tagProfiles = this.profiles.stream()
+			.filter(p -> !(p instanceof CleanPixelData))
+			.filter(p -> !this.sequenceAddProfiles.contains(p))
+			.toList();
 	}
 
 	/**
@@ -187,6 +205,16 @@ public class Profile {
 	 * that item and not the top-level dataset. The enclosing datasets stay reachable from
 	 * an item, so study-level tags remain visible from a nested expression (see
 	 * {@link org.karnak.backend.util.DicomObjectTools#getStringInScope}).
+	 *
+	 * <p>
+	 * The sequences descended into are tracked in a {@link TagPath} and handed to every
+	 * profile item, so an item configured with a path such as
+	 * {@code (0040,0275).(0040,0007)} applies only inside that sequence. An item
+	 * configured with a bare tag keeps applying wherever the tag appears.
+	 *
+	 * <p>
+	 * The items adding an attribute inside a sequence run once the walk is over, see
+	 * {@link #applyAddInSequence}.
 	 * @param dcm dataset being de-identified, mutated in place
 	 * @param original untouched copy of {@code dcm}, taken before the pipeline started
 	 * @param hmac hash context of the current patient
@@ -199,6 +227,60 @@ public class Profile {
 	public void applyAction(Attributes dcm, Attributes original, HMAC hmac,
 			@Nullable ProfileItem profilePassedInSequence, @Nullable ActionItem actionPassedInSequence,
 			AttributeEditorContext context) {
+		this.applyAction(dcm, original, hmac, profilePassedInSequence, actionPassedInSequence, context, TagPath.ROOT);
+		this.applyAddInSequence(dcm, original, hmac, context);
+	}
+
+	/**
+	 * Adds the attributes the profile asks for inside a sequence, creating the sequences
+	 * that the object does not hold — see {@link AddInSequence}.
+	 *
+	 * <p>
+	 * This runs after the object has been walked, and for the same reason an attribute
+	 * added at the top level is not revisited: what a profile item adds is the value it
+	 * asked for, not one another item of the same profile may then replace or remove.
+	 * Nothing is added to an instance the profile excluded.
+	 * @param dcm dataset being de-identified, at the top level
+	 * @param original untouched copy of {@code dcm}
+	 * @param hmac hash context of the current patient
+	 * @param context editor context, read to skip an excluded instance
+	 */
+	private void applyAddInSequence(Attributes dcm, Attributes original, HMAC hmac,
+			@Nullable AttributeEditorContext context) {
+		if (this.sequenceAddProfiles.isEmpty() || isAborted(context)) {
+			return;
+		}
+		ExprCondition exprCondition = new ExprCondition(original);
+		for (AddTag profileEntity : this.sequenceAddProfiles) {
+			if (!conditionMatches(profileEntity, exprCondition)) {
+				continue;
+			}
+			ActionItem action = profileEntity.getSequenceAction(dcm, original, hmac);
+			if (action != null) {
+				this.execute(action, dcm, profileEntity.getTargetTag(), hmac);
+			}
+		}
+	}
+
+	private static boolean isAborted(@Nullable AttributeEditorContext context) {
+		return context != null && context.getAbort() != AttributeEditorContext.Abort.NONE;
+	}
+
+	/** Whether the optional condition of a profile item holds for the current object. */
+	private static boolean conditionMatches(ProfileItem profileEntity, ExprCondition exprCondition) {
+		return profileEntity.getCondition() == null
+				|| (Boolean) ExpressionResult.get(profileEntity.getCondition(), exprCondition, Boolean.class);
+	}
+
+	/**
+	 * @param path sequences enclosing the tags of {@code dcm}, {@link TagPath#ROOT} at
+	 * the top level; it lets a profile item apply only inside a given sequence
+	 * @see #applyAction(Attributes, Attributes, HMAC, ProfileItem, ActionItem,
+	 * AttributeEditorContext)
+	 */
+	private void applyAction(Attributes dcm, Attributes original, HMAC hmac,
+			@Nullable ProfileItem profilePassedInSequence, @Nullable ActionItem actionPassedInSequence,
+			AttributeEditorContext context, TagPath path) {
 		for (int tag : dcm.tags()) {
 			VR vr = dcm.getVR(tag);
 			final ExprCondition exprCondition = new ExprCondition(original);
@@ -211,13 +293,13 @@ public class Profile {
 				if (profileEntity.getCondition() == null
 						|| profileEntity.getCodeName().equals(ProfileItemType.DEFACING.getClassAlias())
 						|| profileEntity.getCodeName().equals(ProfileItemType.CLEAN_PIXEL_DATA.getClassAlias())) {
-					currentAction = profileEntity.getAction(dcm, original, tag, hmac);
+					currentAction = profileEntity.getAction(dcm, original, tag, hmac, path);
 				}
 				else {
 					boolean conditionIsOk = (Boolean) ExpressionResult.get(profileEntity.getCondition(), exprCondition,
 							Boolean.class);
 					if (conditionIsOk) {
-						currentAction = profileEntity.getAction(dcm, original, tag, hmac);
+						currentAction = profileEntity.getAction(dcm, original, tag, hmac, path);
 					}
 				}
 
@@ -253,9 +335,10 @@ public class Profile {
 				Sequence seq = dcm.getSequence(tag);
 				if (seq != null) {
 					Sequence originalSeq = original.getSequence(tag);
+					TagPath itemPath = path.descend(tag);
 					for (int i = 0; i < seq.size(); i++) {
 						this.applyAction(seq.get(i), originalItem(originalSeq, i, original), hmac, currentProfile,
-								currentAction, context);
+								currentAction, context, itemPath);
 					}
 				}
 			}

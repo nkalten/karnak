@@ -25,6 +25,7 @@ import org.karnak.backend.model.expression.ExpressionError;
 import org.karnak.backend.model.expression.ExpressionResult;
 import org.karnak.backend.model.profilepipe.HMAC;
 import org.karnak.backend.model.profilepipe.TagActionMap;
+import org.karnak.backend.model.profilepipe.TagPath;
 
 public class Expression extends AbstractProfileItem {
 
@@ -58,7 +59,12 @@ public class Expression extends AbstractProfileItem {
 
 	@Override
 	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
-		if (exceptedTagsAction.get(tag) == null && tagsAction.get(tag) != null) {
+		return getAction(dcm, original, tag, hmac, TagPath.ROOT);
+	}
+
+	@Override
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac, TagPath path) {
+		if (exceptedTagsAction.get(tag, path) == null && tagsAction.get(tag, path) != null) {
 			final String expr = argumentEntities.getFirst().getArgumentValue();
 			final ExprAction exprAction = new ExprAction(tag, dcm.getVR(tag), original);
 			return (ActionItem) ExpressionResult.get(expr, exprAction, ActionItem.class);
@@ -68,6 +74,7 @@ public class Expression extends AbstractProfileItem {
 
 	@Override
 	public void profileValidation() throws ProfileException {
+		validateTagPaths();
 		if (argumentEntities.stream().noneMatch(argument -> argument.getArgumentKey().equals("expr"))) {
 			List<String> args = argumentEntities.stream().map(ArgumentEntity::getArgumentKey).toList();
 			throw new IllegalArgumentException(

@@ -21,6 +21,7 @@ import org.karnak.backend.model.action.MultipleActions;
 import org.karnak.backend.model.action.Replace;
 import org.karnak.backend.model.profilepipe.HMAC;
 import org.karnak.backend.model.profilepipe.TagActionMap;
+import org.karnak.backend.model.profilepipe.TagPath;
 import org.karnak.backend.util.DateFormat;
 import org.karnak.backend.util.ShiftApiDate;
 import org.karnak.backend.util.ShiftByTagDate;
@@ -61,19 +62,25 @@ public class ActionDates extends AbstractProfileItem {
 					+ option + " : Option available (shift, shift_range, shift_by_tag, shift_from_api, date_format)");
 		}
 
+		validateTagPaths();
 		validateCondition();
 	}
 
 	@Override
 	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
+		return getAction(dcm, original, tag, hmac, TagPath.ROOT);
+	}
+
+	@Override
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac, TagPath path) {
 		final VR vr = dcm.getVR(tag);
 
 		if (vr == VR.AS || vr == VR.DA || vr == VR.DT || vr == VR.TM) {
-			if (exceptedTagsAction.get(tag) != null) {
+			if (exceptedTagsAction.get(tag, path) != null) {
 				return null;
 			}
 
-			if (!tagsAction.isEmpty() && tagsAction.get(tag) == null) {
+			if (!tagsAction.isEmpty() && tagsAction.get(tag, path) == null) {
 				return null;
 			}
 			try {

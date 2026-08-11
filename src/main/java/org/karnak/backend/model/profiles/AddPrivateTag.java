@@ -113,6 +113,8 @@ public class AddPrivateTag extends AbstractProfileItem {
 			throw new ProfileException("Cannot build the profile " + codeName + ": Exactly one tag is required");
 		}
 
+		rejectTagPaths();
+
 		if (!TagUtils.isPrivateTag(
 				TagUtils.intFromHexString(StandardDICOM.cleanTagPath(tagEntities.getFirst().getTagValue())))) {
 			throw new ProfileException("Cannot build the profile " + codeName + ": the tag "

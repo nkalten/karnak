@@ -17,6 +17,7 @@ import org.karnak.backend.data.entity.ProfileElementEntity;
 import org.karnak.backend.model.action.ActionItem;
 import org.karnak.backend.model.profilepipe.HMAC;
 import org.karnak.backend.model.profilepipe.TagActionMap;
+import org.karnak.backend.model.profilepipe.TagPath;
 import org.karnak.backend.model.standard.ConfidentialityProfiles;
 
 public class BasicProfile extends AbstractProfileItem {
@@ -34,10 +35,15 @@ public class BasicProfile extends AbstractProfileItem {
 
 	@Override
 	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac) {
-		ActionItem action = actionMap.get(tag);
+		return getAction(dcm, original, tag, hmac, TagPath.ROOT);
+	}
+
+	@Override
+	public @Nullable ActionItem getAction(Attributes dcm, Attributes original, int tag, HMAC hmac, TagPath path) {
+		ActionItem action = actionMap.get(tag, path);
 		if (action == null) {
 			for (ProfileItem p : listProfiles) {
-				ActionItem val = p.getAction(dcm, original, tag, hmac);
+				ActionItem val = p.getAction(dcm, original, tag, hmac, path);
 				if (val != null) {
 					return val;
 				}
