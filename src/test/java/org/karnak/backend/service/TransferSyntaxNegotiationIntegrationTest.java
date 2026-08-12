@@ -9,10 +9,13 @@
  */
 package org.karnak.backend.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-
 import org.dcm4che3.data.UID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
@@ -24,12 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.karnak.backend.dicom.DicomForwardDestination;
 import org.karnak.backend.dicom.ForwardDicomNode;
 import org.karnak.backend.dicom.Params;
-
 import org.springframework.context.ApplicationEventPublisher;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /**
  * Transfer-syntax and SOP-class negotiation over real associations. Uncompressed transfer

@@ -9,6 +9,9 @@
  */
 package org.karnak.backend.service;
 
+import jakarta.annotation.PreDestroy;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -18,10 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-
-import jakarta.annotation.PreDestroy;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.dcm4che3.data.UID;
@@ -41,9 +40,6 @@ import org.karnak.backend.model.validation.InstanceValidationResult;
 import org.karnak.backend.model.validation.StudyConformanceAccumulator;
 import org.karnak.backend.model.validation.StudyKey;
 import org.karnak.backend.service.profilepipe.DeidentifyImageService;
-import org.thymeleaf.TemplateEngine;
-import org.thymeleaf.context.Context;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
@@ -52,6 +48,8 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 
 /**
  * Collects the conformance data of forwarded instances (published by ForwardService for

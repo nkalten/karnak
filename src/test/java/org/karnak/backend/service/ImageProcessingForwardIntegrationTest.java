@@ -9,6 +9,11 @@
  */
 package org.karnak.backend.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.mockito.Mockito.mock;
+
 import java.awt.*;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -16,7 +21,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
-
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.UID;
@@ -34,15 +38,9 @@ import org.karnak.backend.dicom.Defacer;
 import org.karnak.backend.dicom.DicomForwardDestination;
 import org.karnak.backend.dicom.ForwardDicomNode;
 import org.karnak.backend.dicom.Params;
+import org.springframework.context.ApplicationEventPublisher;
 import org.weasis.dicom.param.AttributeEditor;
 import org.weasis.opencv.natives.NativeLibrary;
-
-import org.springframework.context.ApplicationEventPublisher;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.mockito.Mockito.mock;
 
 /**
  * Image-processing forwarding over real associations: a pixel-bearing object is forwarded
