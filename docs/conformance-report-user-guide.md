@@ -46,9 +46,14 @@ The report is configured **per destination**.
    - Optionally tick **Check for identifying data burned into the image** to run
      OCR on each forwarded image and list, in the report, which
      patient-identifying DICOM tag values are still visible in the pixel data
-     (burned-in text). Off by default. **This option requires the external
-     de-identification image service to be running** — see the prerequisite
-     below.
+     (burned-in text). The OCR runs on the **image actually sent** — that is, on
+     the pixels the receiver gets, after any masking or defacing the destination
+     applies. It therefore verifies that no identifying text remains in the
+     outgoing image. To instead audit the **incoming** image (before Karnak masks
+     it), enable this option on a **virtual destination**, which processes the
+     object but forwards nothing. Off by default. **This option requires the
+     external de-identification image service to be running** — see the
+     prerequisite below.
 4. Save the destination.
 
 Conformance reporting is independent from the *Activate notification* feature
