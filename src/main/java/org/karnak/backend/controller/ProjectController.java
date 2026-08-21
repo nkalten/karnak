@@ -217,7 +217,7 @@ public class ProjectController {
 			SecretEntity secret = secretService.importSecret(project, secretModel.getKey());
 			projectService.update(project);
 			return ResponseEntity.status(HttpStatus.CREATED).body(SecretMapper.toModel(secret));
-		} catch (IllegalArgumentException ignored) {
+		} catch (IllegalArgumentException _) {
 			return ResponseEntity.badRequest().build();
 		}
 	}

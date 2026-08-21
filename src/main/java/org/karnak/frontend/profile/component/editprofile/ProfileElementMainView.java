@@ -273,11 +273,6 @@ public class ProfileElementMainView extends VerticalLayout {
 		dialog.open();
 	}
 
-	private void showDeleteWarning(String message) {
-		dialogWarning.setErrorMessage(message);
-		dialogWarning.open();
-	}
-
 	private void move(ProfileElementEntity element, int delta) {
 		List<ProfileElementEntity> ordered = orderedElements();
 		int index = indexOf(ordered, element);

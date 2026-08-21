@@ -78,7 +78,7 @@ class ProfilePipeServiceTest {
 	void should_retrieve_all_profiles() {
 
 		// Call service
-		List<ProfileEntity> allProfiles = profilePipeService.retrieveAllProfiles();
+		profilePipeService.retrieveAllProfiles();
 
 		// Test results
 		Mockito.verify(profileRepositoryMock, Mockito.times(1)).findAll();

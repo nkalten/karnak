@@ -212,7 +212,7 @@ public class ProfileController {
 		catch (JsonProcessingException e) {
 			return ResponseEntity.badRequest().body(List.of(formatYamlError(e)));
 		}
-		catch (IOException e) {
+		catch (IOException _) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(List.of("Unable to read the uploaded file."));
 		}

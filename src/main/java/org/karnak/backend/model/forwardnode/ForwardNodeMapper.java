@@ -46,16 +46,6 @@ public final class ForwardNodeMapper {
 		ForwardNodeEntity entity = new ForwardNodeEntity();
 		entity.setFwdDescription(model.getFwdDescription());
 		entity.setFwdAeTitle(model.getFwdAeTitle());
-		// to remove: Handle by dedicated endpoints
-//		entity.setSourceNodes(model.getSourceNodes()
-//			.stream()
-//			.map(DicomSourceNodeMapper::toEntity)
-//			.collect(Collectors.toSet()));
-//		entity.setDestinationEntities(model.getDestinations()
-//			.stream()
-//			.map(DestinationMapper::toEntity)
-//			.collect(Collectors.toSet()));
-
 		return entity;
 	}
 
