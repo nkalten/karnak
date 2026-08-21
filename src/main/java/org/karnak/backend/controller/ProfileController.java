@@ -281,8 +281,17 @@ public class ProfileController {
 			return ResponseEntity.notFound().build();
 		}
 		ProfileElementEntity newElement = ProfileElementMapper.toEntity(profileElementModel);
+		if (newElement == null) {
+			return ResponseEntity.badRequest().build();
+		}
 		ProfileEntity saved = profilePipeService.saveElement(profile.getId(), newElement);
+		if (saved == null) {
+			return ResponseEntity.notFound().build();
+		}
 		ProfileElementEntity createdElement = profilePipeService.retrieveElementByUuid(saved, newElement.getUuid());
+		if (createdElement == null) {
+			return ResponseEntity.notFound().build();
+		}
 		return ResponseEntity.status(HttpStatus.CREATED).body(ProfileElementMapper.toModel(createdElement));
 	}
 
@@ -304,6 +313,9 @@ public class ProfileController {
 			return ResponseEntity.notFound().build();
 		}
 		ProfileElementEntity updatedElement = ProfileElementMapper.toEntity(profileElementModel);
+		if (updatedElement == null) {
+			return ResponseEntity.badRequest().build();
+		}
 		// Preserve the technical id so the service replaces the existing element (at its
 		// current position) instead of appending a new one.
 		updatedElement.setId(existingElement.getId());
