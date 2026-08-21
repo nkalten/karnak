@@ -38,7 +38,7 @@ public abstract class PseudonymCache {
 
 	private final String patternSearchAllKeysCache;
 
-	public PseudonymCache(Cache cache, @Nullable RedisTemplate<String, PatientModel> redisTemplate, String name) {
+	protected PseudonymCache(Cache cache, @Nullable RedisTemplate<String, PatientModel> redisTemplate, String name) {
 		this.cache = cache;
 		this.redisTemplate = redisTemplate;
 		this.prefixKeySearchCache = "%s%s".formatted(name, KEY_SEPARATOR);

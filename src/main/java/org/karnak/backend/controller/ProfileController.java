@@ -309,6 +309,9 @@ public class ProfileController {
 		updatedElement.setId(existingElement.getId());
 		ProfileEntity saved = profilePipeService.saveElement(profile.getId(), updatedElement);
 		ProfileElementEntity savedElement = profilePipeService.retrieveElementByUuid(saved, updatedElement.getUuid());
+		if (savedElement == null) {
+			return ResponseEntity.notFound().build();
+		}
 		return ResponseEntity.ok(ProfileElementMapper.toModel(savedElement));
 	}
 
