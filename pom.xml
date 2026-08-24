@@ -24,7 +24,7 @@
     <org.json.version>20260719</org.json.version>
     <opencsv.version>5.12.0</opencsv.version>
 
-    <weasis-dicom-tools.version>5.34.3.2</weasis-dicom-tools.version>
+    <weasis-dicom-tools.version>5.34.3.3</weasis-dicom-tools.version>
     <weasis.opencv.native.version>5.0.0-dcm</weasis.opencv.native.version>
 
     <h2.version>2.4.240</h2.version>
@@ -191,6 +191,7 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
           <release>${java.version}</release>
+          <parameters>true</parameters>
           <annotationProcessorPaths>
             <path>
               <groupId>org.projectlombok</groupId>
