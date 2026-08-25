@@ -34,8 +34,8 @@ import java.util.stream.Stream;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NullUnmarked;
-import org.karnak.backend.model.patient.PatientModel;
 import org.karnak.backend.data.entity.ProjectEntity;
+import org.karnak.backend.model.patient.PatientModel;
 import org.weasis.core.util.StringUtil;
 import org.weasis.core.util.annotations.Generated;
 
@@ -129,6 +129,7 @@ public class CSVDialog extends Dialog {
 		fromLineField.setStepButtonsVisible(true);
 		fromLineField.setMin(1);
 		fromLineField.setMax((double) allRows.size() + 1);
+		fromLineField.getStyle().set("margin-bottom", "10px");
 
 		readCSVButton = new Button("Upload CSV", event -> {
 			if (selectValuesPositionHashMap.get(EXTERNAL_PSEUDONYM).equals(-1)
