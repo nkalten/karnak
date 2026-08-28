@@ -48,26 +48,12 @@ class DicomNodeConfigServiceTest {
 	}
 
 	@Test
-	void groups_managed_nodes_by_node_group_ordered_with_ungrouped_under_workstation() {
-		var ungrouped = node("Karnak", "KARNAK-GATEWAY", "localhost", 11112, "WORKSTATION", null);
-		var pacs = node("Public", "DICOMSERVER", "dicomserver.co.uk", 11112, "WORKSTATION", "PACS_WEB");
-		when(dicomNodeConfigRepo.findByNodeTypeNot("WORKLIST")).thenReturn(List.of(ungrouped, pacs));
-
-		var result = dicomNodeConfigService.getWorkStationNodeTypes(true);
-
-		assertEquals(2, result.size());
-		assertEquals("PACS_WEB", result.get(0).getName());
-		assertEquals("WORKSTATION", result.get(1).getName());
-		assertEquals("KARNAK-GATEWAY", result.get(1).getFirst().getAet());
-	}
-
-	@Test
 	void exposes_id_and_node_type_on_loaded_nodes() {
 		var workstation = node("Karnak", "KARNAK-GATEWAY", "localhost", 11112, "WORKSTATION", null);
 		workstation.setId(42L);
-		when(dicomNodeConfigRepo.findByNodeTypeNot("WORKLIST")).thenReturn(List.of(workstation));
+		when(dicomNodeConfigRepo.findByNodeType("WORKSTATION")).thenReturn(List.of(workstation));
 
-		var configNode = dicomNodeConfigService.getWorkStationNodeTypes(true).get(0).getFirst();
+		var configNode = dicomNodeConfigService.getWorkStationNodeTypes(false).get(0).getFirst();
 
 		assertEquals(42L, configNode.getId());
 		assertEquals("WORKSTATION", configNode.getNodeType());
