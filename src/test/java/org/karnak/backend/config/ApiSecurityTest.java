@@ -13,11 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.servlet.Filter;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator.ReplaceUnderscores;
@@ -102,6 +104,21 @@ class ApiSecurityTest {
 	void aetitle_with_a_control_character_is_rejected() throws Exception {
 		mockMvc
 			.perform(post(EndPoint.FORWARD_NODES_PATH).header(HttpHeaders.AUTHORIZATION, basicAdmin())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"fwdAeTitle\":\"A\\r\\nINFO forged\"}"))
+			.andExpect(status().isBadRequest());
+	}
+
+	/**
+	 * The update is a partial payload and so cannot be {@code @Valid}; it must still hold
+	 * the fields it does carry to the constraints of the creation endpoint. A 404 here
+	 * would mean the payload was accepted and only the unknown uuid stopped it.
+	 */
+	@Test
+	void updated_aetitle_with_a_control_character_is_rejected() throws Exception {
+		mockMvc
+			.perform(put(EndPoint.FORWARD_NODES_PATH + "/" + UUID.randomUUID())
+				.header(HttpHeaders.AUTHORIZATION, basicAdmin())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"fwdAeTitle\":\"A\\r\\nINFO forged\"}"))
 			.andExpect(status().isBadRequest());

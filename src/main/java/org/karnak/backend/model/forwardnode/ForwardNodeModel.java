@@ -38,9 +38,9 @@ public class ForwardNodeModel implements Serializable {
 	// gateway logs. DICOM PS3.5 already excludes control characters and the backslash
 	// from an AE title; enforcing it here also keeps a crafted payload from forging log
 	// records with an embedded CR/LF.
-	static final String AE_TITLE = "[^\\p{Cntrl}\\\\]*";
+	public static final String AE_TITLE = "[^\\p{Cntrl}\\\\]*";
 
-	static final String NO_CONTROL_CHARACTERS = "[^\\p{Cntrl}]*";
+	public static final String NO_CONTROL_CHARACTERS = "[^\\p{Cntrl}]*";
 
 	private UUID uuid;
 
