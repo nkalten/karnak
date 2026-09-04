@@ -111,14 +111,12 @@ public class ProjectController {
 	@PreAuthorize("hasAuthority('karnak_read')")
 	public ResponseEntity<ProjectModel> retrieveProject(@PathVariable("projectUuid") UUID projectUuid) {
 		ProjectEntity project = projectService.retrieveProjectByUuid(projectUuid);
-		return project == null ? ResponseEntity.notFound().build()
-				: ResponseEntity.ok(ProjectMapper.toModel(project));
+		return project == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(ProjectMapper.toModel(project));
 	}
 
 	@Operation(summary = "Update a project",
 			description = "Only name and profileUuid are updatable. Destinations and secrets are preserved "
-					+ "(manage them via their own endpoints). ProfileUuid must reference an existing "
-					+ "profile.")
+					+ "(manage them via their own endpoints). ProfileUuid must reference an existing " + "profile.")
 	@ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Project updated"),
 			@ApiResponse(responseCode = "400", description = "profileUuid does not reference an existing profile",
 					content = @Content),
@@ -217,7 +215,8 @@ public class ProjectController {
 			SecretEntity secret = secretService.importSecret(project, secretModel.getKey());
 			projectService.update(project);
 			return ResponseEntity.status(HttpStatus.CREATED).body(SecretMapper.toModel(secret));
-		} catch (IllegalArgumentException _) {
+		}
+		catch (IllegalArgumentException _) {
 			return ResponseEntity.badRequest().build();
 		}
 	}

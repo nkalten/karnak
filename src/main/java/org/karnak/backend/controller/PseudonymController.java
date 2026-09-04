@@ -43,7 +43,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * REST controller managing pseudonyms. 
+ * REST controller managing pseudonyms.
  */
 @RestController
 @RequestMapping(EndPoint.PSEUDONYMS_PATH)
@@ -79,20 +79,18 @@ public class PseudonymController {
 	@GetMapping(value = "/{pseudonym}", produces = ApiVersion.V1_APPLICATION_JSON_VALUE)
 	@PreAuthorize("hasAuthority('karnak_read')")
 	public ResponseEntity<PatientModel> retrievePatient(@PathVariable("pseudonym") String pseudonym) {
-        return pseudonymCache.findPatientByPseudonym(pseudonym)
-				.map(ResponseEntity::ok)
-				.orElseGet(() -> ResponseEntity.notFound().build());
-    }
+		return pseudonymCache.findPatientByPseudonym(pseudonym)
+			.map(ResponseEntity::ok)
+			.orElseGet(() -> ResponseEntity.notFound().build());
+	}
 
 	@Operation(summary = "Create a pseudonym",
 			description = "The pseudonym will be stored in the external ID cache for the given project.")
 	@ApiResponses(value = { @ApiResponse(responseCode = "201", description = "Pseudonym created"),
-			@ApiResponse(responseCode = "400",
-					description = "Missing or invalid pseudonym, patientId, or projectUUID",
+			@ApiResponse(responseCode = "400", description = "Missing or invalid pseudonym, patientId, or projectUUID",
 					content = @Content),
 			@ApiResponse(responseCode = "404", description = "Project not found", content = @Content),
-			@ApiResponse(responseCode = "409",
-					description = "A pseudonym already exists for this patient and project",
+			@ApiResponse(responseCode = "409", description = "A pseudonym already exists for this patient and project",
 					content = @Content) })
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = ApiVersion.V1_APPLICATION_JSON_VALUE)
 	@PreAuthorize("hasAuthority('karnak_create')")
@@ -112,8 +110,7 @@ public class PseudonymController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(patientModel);
 	}
 
-	@Operation(summary = "Update a pseudonym/patient",
-			description = "Update the patient identified by pseudonym.")
+	@Operation(summary = "Update a pseudonym/patient", description = "Update the patient identified by pseudonym.")
 	@ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Patient updated"),
 			@ApiResponse(responseCode = "400", description = "Invalid request body", content = @Content),
 			@ApiResponse(responseCode = "404", description = "Patient not found", content = @Content) })

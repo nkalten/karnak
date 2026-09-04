@@ -59,8 +59,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Rest controller managing de-identification profiles and their profile elements. Only
- * {@link ProfileModel} / {@link ProfileElementModel} (never the JPA entities) are
- * exposed at the REST boundary, decoupling the wire format from the persistence model.
+ * {@link ProfileModel} / {@link ProfileElementModel} (never the JPA entities) are exposed
+ * at the REST boundary, decoupling the wire format from the persistence model.
  */
 @RestController
 @RequestMapping(EndPoint.PROFILES_PATH)
@@ -76,7 +76,6 @@ public class ProfileController {
 	public ProfileController(final ProfilePipeService profilePipeService) {
 		this.profilePipeService = profilePipeService;
 	}
-
 
 	// ======== Profiles ========
 
@@ -110,9 +109,8 @@ public class ProfileController {
 			return ResponseEntity.status(HttpStatus.CONFLICT).build();
 		}
 		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(ProfileMapper.toModel(
-						profilePipeService.createEmptyProfile(profileModel.getName(),
-							profileModel.getVersion(), profileModel.getMinimumKarnakVersion())));
+			.body(ProfileMapper.toModel(profilePipeService.createEmptyProfile(profileModel.getName(),
+					profileModel.getVersion(), profileModel.getMinimumKarnakVersion())));
 	}
 
 	@Operation(summary = "Get a profile by uuid")
@@ -122,8 +120,7 @@ public class ProfileController {
 	@PreAuthorize("hasAuthority('karnak_read')")
 	public ResponseEntity<ProfileModel> retrieveProfile(@PathVariable("profileUuid") UUID profileUuid) {
 		ProfileEntity profile = profilePipeService.retrieveProfileByUuid(profileUuid);
-		return profile == null ? ResponseEntity.notFound().build()
-				: ResponseEntity.ok(ProfileMapper.toModel(profile));
+		return profile == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(ProfileMapper.toModel(profile));
 	}
 
 	@Operation(summary = "Update a profile",
@@ -157,7 +154,8 @@ public class ProfileController {
 		String newVersion = profileModel.getVersion() != null ? profileModel.getVersion() : existing.getVersion();
 		if (profilePipeService.retrieveAllProfiles()
 			.stream()
-			.anyMatch(p -> !Objects.equals(p.getId(), existing.getId()) && sameNameAndVersion(p, newName, newVersion))) {
+			.anyMatch(
+					p -> !Objects.equals(p.getId(), existing.getId()) && sameNameAndVersion(p, newName, newVersion))) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).build();
 		}
 		existing.setName(newName);
@@ -170,7 +168,8 @@ public class ProfileController {
 
 	@Operation(summary = "Delete a profile")
 	@ApiResponses(value = { @ApiResponse(responseCode = "204", description = "Profile deleted"),
-			@ApiResponse(responseCode = "400", description = "Profile is used by one or more projects", content = @Content),
+			@ApiResponse(responseCode = "400", description = "Profile is used by one or more projects",
+					content = @Content),
 			@ApiResponse(responseCode = "404", description = "Profile not found", content = @Content) })
 	@DeleteMapping(value = "/{profileUuid}", produces = ApiVersion.V1_APPLICATION_JSON_VALUE)
 	@PreAuthorize("hasAuthority('karnak_delete')")
@@ -191,8 +190,8 @@ public class ProfileController {
 					+ "The profile is only persisted when the YAML is well-formed, every profile element is valid, "
 					+ "and no existing profile shares the same name and version.")
 	@ApiResponses(value = { @ApiResponse(responseCode = "201", description = "Profile imported"),
-			@ApiResponse(responseCode = "400", description = "Missing file, invalid YAML or missing profile name/elements",
-					content = @Content),
+			@ApiResponse(responseCode = "400",
+					description = "Missing file, invalid YAML or missing profile name/elements", content = @Content),
 			@ApiResponse(responseCode = "409", description = "A profile with the same name and version already exists",
 					content = @Content),
 			@ApiResponse(responseCode = "422", description = "One or more profile elements failed validation",
@@ -223,7 +222,7 @@ public class ProfileController {
 		}
 
 		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(ProfileMapper.toModel(profilePipeService.saveProfilePipe(profilePipeBody, false)));
+			.body(ProfileMapper.toModel(profilePipeService.saveProfilePipe(profilePipeBody, false)));
 	}
 
 	@Operation(summary = "Download a profile as a YAML file",
@@ -240,11 +239,10 @@ public class ProfileController {
 		}
 		return ResponseEntity.ok()
 			.contentType(MediaType.parseMediaType("application/x-yaml"))
-			.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"%s\""
-					.formatted(buildDownloadFileName(profile)))
+			.header(HttpHeaders.CONTENT_DISPOSITION,
+					"attachment; filename=\"%s\"".formatted(buildDownloadFileName(profile)))
 			.body(ProfileYamlSerializer.toYaml(profile));
 	}
-
 
 	// ======== Profile Elements ========
 
@@ -303,7 +301,8 @@ public class ProfileController {
 			produces = ApiVersion.V1_APPLICATION_JSON_VALUE)
 	@PreAuthorize("hasAuthority('karnak_update')")
 	public ResponseEntity<ProfileElementModel> updateElement(@PathVariable("profileUuid") UUID profileUuid,
-			@PathVariable("elementUuid") UUID elementUuid, @Valid @RequestBody ProfileElementModel profileElementModel) {
+			@PathVariable("elementUuid") UUID elementUuid,
+			@Valid @RequestBody ProfileElementModel profileElementModel) {
 		ProfileEntity profile = profilePipeService.retrieveProfileByUuid(profileUuid);
 		if (profile == null) {
 			return ResponseEntity.notFound().build();
@@ -347,7 +346,6 @@ public class ProfileController {
 		return ResponseEntity.noContent().build();
 	}
 
-
 	/** True when {@code profile} has the given name and version (both compared as-is). */
 	private static boolean sameNameAndVersion(ProfileEntity profile, String name, String version) {
 		return Objects.equals(profile.getName(), name) && Objects.equals(profile.getVersion(), version);
@@ -364,8 +362,8 @@ public class ProfileController {
 	 */
 	private static String formatYamlError(JsonProcessingException e) {
 		JsonLocation location = e.getLocation();
-		String where = location != null
-				? "Line %d, column %d: ".formatted(location.getLineNr(), location.getColumnNr()) : "";
+		String where = location != null ? "Line %d, column %d: ".formatted(location.getLineNr(), location.getColumnNr())
+				: "";
 		String problem = e.getOriginalMessage() != null ? e.getOriginalMessage() : "invalid YAML structure";
 		return where + problem;
 	}
@@ -385,7 +383,8 @@ public class ProfileController {
 
 	/**
 	 * Validate an imported YAML profile body before it is persisted.
-	 * @param profilePipeBody the parsed body (may be {@code null} when the YAML was empty)
+	 * @param profilePipeBody the parsed body (may be {@code null} when the YAML was
+	 * empty)
 	 * @return a ready-to-return error response, or {@code null} when the profile is valid
 	 * and can be persisted
 	 */
@@ -395,16 +394,16 @@ public class ProfileController {
 			return ResponseEntity.badRequest().body(List.of(basicError));
 		}
 		if (profilePipeService.retrieveAllProfiles()
-				.stream()
-				.anyMatch(p -> sameNameAndVersion(p, profilePipeBody.getName(), profilePipeBody.getVersion()))) {
+			.stream()
+			.anyMatch(p -> sameNameAndVersion(p, profilePipeBody.getName(), profilePipeBody.getVersion()))) {
 			return ResponseEntity.status(HttpStatus.CONFLICT)
-					.body(List.of("A profile with the same name and version already exists."));
+				.body(List.of("A profile with the same name and version already exists."));
 		}
 		List<String> validationErrors = profilePipeService.validateProfile(profilePipeBody)
-				.stream()
-				.filter(profileError -> profileError.getError() != null)
-				.map(ProfileController::formatValidationError)
-				.toList();
+			.stream()
+			.filter(profileError -> profileError.getError() != null)
+			.map(ProfileController::formatValidationError)
+			.toList();
 		if (!validationErrors.isEmpty()) {
 			return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(validationErrors);
 		}
@@ -412,8 +411,8 @@ public class ProfileController {
 	}
 
 	/**
-	 * Check the structural prerequisites of an imported profile (non-empty YAML, a
-	 * name, and a {@code profileElements} list).
+	 * Check the structural prerequisites of an imported profile (non-empty YAML, a name,
+	 * and a {@code profileElements} list).
 	 * @return a human-readable error message, or {@code null} when the body is
 	 * structurally valid
 	 */
@@ -429,4 +428,5 @@ public class ProfileController {
 		}
 		return null;
 	}
+
 }

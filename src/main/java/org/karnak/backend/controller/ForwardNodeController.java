@@ -102,8 +102,8 @@ public class ForwardNodeController {
 	@PreAuthorize("hasAuthority('karnak_create')")
 	public ResponseEntity<ForwardNodeModel> createForwardNode(@Valid @RequestBody ForwardNodeModel forwardNodeModel) {
 		if (forwardNodeService.retrieveAllForwardNodes()
-				.stream()
-				.anyMatch(f -> Objects.equals(f.getFwdAeTitle(), forwardNodeModel.getFwdAeTitle()))) {
+			.stream()
+			.anyMatch(f -> Objects.equals(f.getFwdAeTitle(), forwardNodeModel.getFwdAeTitle()))) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).build();
 		}
 		ForwardNodeEntity forwardNodeEntity = ForwardNodeMapper.toEntity(forwardNodeModel);
@@ -179,10 +179,7 @@ public class ForwardNodeController {
 		if (node.getSourceNodes() == null || node.getSourceNodes().isEmpty()) {
 			return ResponseEntity.noContent().build();
 		}
-		return ResponseEntity.ok(node.getSourceNodes()
-				.stream()
-				.map(DicomSourceNodeMapper::toModel)
-				.toList());
+		return ResponseEntity.ok(node.getSourceNodes().stream().map(DicomSourceNodeMapper::toModel).toList());
 	}
 
 	@Operation(summary = "Add a source node to a forward node")
@@ -246,10 +243,7 @@ public class ForwardNodeController {
 		if (destinations == null || destinations.isEmpty()) {
 			return ResponseEntity.noContent().build();
 		}
-		return ResponseEntity.ok(destinations
-				.stream()
-				.map(DestinationMapper::toModel)
-				.toList());
+		return ResponseEntity.ok(destinations.stream().map(DestinationMapper::toModel).toList());
 	}
 
 	@Operation(summary = "Add a destination to a forward node")
@@ -274,8 +268,8 @@ public class ForwardNodeController {
 	@ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Destination updated"),
 			@ApiResponse(responseCode = "404", description = "Forward node or destination not found",
 					content = @Content) })
-	@PutMapping(value = "/{forwardNodeUuid}/destinations/{destinationUuid}", consumes = MediaType.APPLICATION_JSON_VALUE,
-			produces = ApiVersion.V1_APPLICATION_JSON_VALUE)
+	@PutMapping(value = "/{forwardNodeUuid}/destinations/{destinationUuid}",
+			consumes = MediaType.APPLICATION_JSON_VALUE, produces = ApiVersion.V1_APPLICATION_JSON_VALUE)
 	@PreAuthorize("hasAuthority('karnak_update')")
 	public ResponseEntity<DestinationModel> updateDestination(@PathVariable("forwardNodeUuid") UUID forwardNodeUuid,
 			@PathVariable("destinationUuid") UUID destinationUuid,
