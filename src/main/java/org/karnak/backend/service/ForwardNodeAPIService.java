@@ -45,7 +45,10 @@ public class ForwardNodeAPIService implements Serializable {
 	}
 
 	public void addForwardNode(ForwardNodeEntity forwardNodeEntity) {
-		NodeEventType eventType = forwardNodeEntity.getId() == null ? NodeEventType.ADD : NodeEventType.UPDATE;
+		// The only caller maps a required @Valid @RequestBody, which Spring rejects with
+		// a 400 when absent, so the mapped entity is never null here.
+		NodeEventType eventType = forwardNodeEntity.getId() == null // NOSONAR
+				? NodeEventType.ADD : NodeEventType.UPDATE;
 		if (eventType == NodeEventType.ADD) {
 			boolean aeTitleExists = forwardNodeService.retrieveAllForwardNodes()
 				.stream()

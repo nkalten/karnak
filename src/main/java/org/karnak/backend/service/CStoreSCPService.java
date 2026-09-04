@@ -449,7 +449,7 @@ public class CStoreSCPService extends BasicCStoreSCP {
 		if (consecutiveGrowSamples >= GROW_HYSTERESIS_SAMPLES && permitLimit < maxTransferPermits) {
 			consecutiveGrowSamples = 0;
 			int step = Math.min(permitStep, maxTransferPermits - permitLimit);
-			permitLimit += step;
+			permitLimit += step; // NOSONAR single-writer sampler thread
 			transferPermits.release(step);
 			log.debug("Transfer permit limit raised to {} (live heap {}%)", permitLimit, Math.round(heapUsage * 100));
 		}
@@ -464,7 +464,7 @@ public class CStoreSCPService extends BasicCStoreSCP {
 			consecutiveShrinkSamples = 0;
 			int headroom = permitLimit - minTransferPermits;
 			int step = Math.min(headroom, Math.max(permitStep, headroom / 2));
-			permitLimit -= step;
+			permitLimit -= step; // NOSONAR single-writer sampler thread
 			transferPermits.reduce(step);
 			log.debug("Transfer permit limit lowered to {} ({} {}%)", permitLimit, signal, Math.round(usage * 100));
 		}
