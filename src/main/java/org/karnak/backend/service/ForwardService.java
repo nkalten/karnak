@@ -17,8 +17,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -96,6 +99,12 @@ import org.springframework.stereotype.Service;
 public class ForwardService {
 
 	private static final String ERROR_WHEN_FORWARDING = "Error when forwarding to the final destination";
+
+	// Owner-only creation mode for the spool files, so a dataset waiting in the shared
+	// temporary directory is not readable by the other users of the host. Empty on a
+	// file system without POSIX permissions (Windows), where the temporary directory is
+	// already per-user and createTempFile would reject the attribute.
+	private static final FileAttribute<?>[] SPOOL_FILE_ATTRIBUTES = spoolFileAttributes();
 
 	private final ApplicationEventPublisher applicationEventPublisher;
 
@@ -462,13 +471,26 @@ public class ForwardService {
 		}
 	}
 
+	private static FileAttribute<?>[] spoolFileAttributes() {
+		if (FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+			return new FileAttribute<?>[] {
+					PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")) };
+		}
+		return new FileAttribute<?>[0];
+	}
+
 	/**
 	 * Realises a data writer into a temporary file holding the dataset exactly as it
 	 * would be written on the association in {@code tsuid}. The file lives next to the
 	 * bulk-data spool (the JVM temporary directory) and belongs to the caller.
+	 *
+	 * <p>
+	 * That directory is shared with every other user of the host, and the spool holds a
+	 * whole patient dataset, so the file is created owner-only rather than with the umask
+	 * of the process.
 	 */
 	private static Path spoolDataset(DataWriter dataWriter, String tsuid) throws IOException {
-		Path spool = Files.createTempFile("karnak-fwd-", ".dcm");
+		Path spool = Files.createTempFile("karnak-fwd-", ".dcm", SPOOL_FILE_ATTRIBUTES);
 		try (FilePDVOutputStream out = new FilePDVOutputStream(
 				new BufferedOutputStream(Files.newOutputStream(spool)))) {
 			dataWriter.writeTo(out, tsuid);

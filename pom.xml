@@ -456,6 +456,12 @@
       <artifactId>spring-boot-starter-oauth2-client</artifactId>
       <version>${springframework.version}</version>
     </dependency>
+    <!-- Bearer token authentication of the REST API when the IDP is OIDC -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+      <version>${springframework.version}</version>
+    </dependency>
 
     <!-- Swagger -->
     <dependency>
