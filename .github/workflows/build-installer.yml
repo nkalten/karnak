@@ -103,6 +103,10 @@ jobs:
         with:
           name: ${{ env.APP_PACKAGE_FOLDER }}
           path: target/${{ env.APP_PACKAGE_FOLDER }}
+          # The macOS app image seals Contents/app/.jpackage.xml, which is dropped by the
+          # default hidden-file exclusion. Gatekeeper then reports the sealed resource as
+          # missing and kills the app on first launch.
+          include-hidden-files: true
           compression-level: '9'
           if-no-files-found: error
           retention-days: 30
