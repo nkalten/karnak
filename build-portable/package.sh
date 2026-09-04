@@ -243,7 +243,7 @@ else
 fi
 
 if [ ! -d "$JDK_PATH_UNIX/jmods" ]; then
-  die "The JDK at '$JDK_PATH_UNIX' has no 'jmods' directory (packaged modules) required by jpackage/jlink.\nUse a full JDK >= ${REQUIRED_TEXT_VERSION} that ships jmods."
+  die "The JDK at '$JDK_PATH_UNIX' has no 'jmods' directory (packaged modules) required by jpackage/jlink.\nUse a full JDK >= ${REQUIRED_TEXT_VERSION} that ships jmods. Temurin 24+ enables JEP 493 and\ndistributes the jmods separately: install the 'jdk+jmods' package, or download the jmods\narchive from the Adoptium API and extract it as '$JDK_PATH_UNIX/jmods'."
 fi
 
 $JPKGCMD --type app-image --input "$INPUT_DIR" --dest "$OUTPUT_PATH" --name "$NAME" \
