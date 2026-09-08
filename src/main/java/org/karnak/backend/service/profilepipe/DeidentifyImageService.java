@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.http.HttpClient;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -271,7 +272,18 @@ public class DeidentifyImageService {
 		MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
 
 		TransferSyntaxMapping mapping = resolveMapping(tsuid);
-		bodyBuilder.part("image", new ByteArrayResource(imageBytes) {
+		boolean rawPixelData = mapping.filename().endsWith(".raw");
+		int rows = dcmAttributes.getInt(Tag.Rows, 0);
+		int columns = dcmAttributes.getInt(Tag.Columns, 0);
+		int bitsAllocated = dcmAttributes.getInt(Tag.BitsAllocated, 0);
+		int samplesPerPixel = dcmAttributes.getInt(Tag.SamplesPerPixel, 0);
+
+		byte[] payload = rawPixelData
+				? firstRawFrame(imageBytes, rows, columns, bitsAllocated, samplesPerPixel,
+						dcmAttributes.getString(Tag.SOPInstanceUID))
+				: imageBytes;
+
+		bodyBuilder.part("image", new ByteArrayResource(payload) {
 			@Override
 			public String getFilename() {
 				return mapping.filename();
@@ -286,17 +298,53 @@ public class DeidentifyImageService {
 		addTextPart(bodyBuilder, "sop_instance_uid", dcmAttributes.getString(Tag.SOPInstanceUID)); // NOSONAR
 		addTextPart(bodyBuilder, "transfer_syntax_uid", tsuid);
 
-		addTextPart(bodyBuilder, "rows", dcmAttributes.getInt(Tag.Rows, 0));
-		addTextPart(bodyBuilder, "columns", dcmAttributes.getInt(Tag.Columns, 0));
-		addTextPart(bodyBuilder, "bits_allocated", dcmAttributes.getInt(Tag.BitsAllocated, 0));
-		addTextPart(bodyBuilder, "samples_per_pixel", dcmAttributes.getInt(Tag.SamplesPerPixel, 0));
+		addTextPart(bodyBuilder, "rows", rows);
+		addTextPart(bodyBuilder, "columns", columns);
+		addTextPart(bodyBuilder, "bits_allocated", bitsAllocated);
+		addTextPart(bodyBuilder, "samples_per_pixel", samplesPerPixel);
 		addTextPart(bodyBuilder, "photometric_interpretation", dcmAttributes.getString(Tag.PhotometricInterpretation));
 
-		if (mapping.filename().endsWith(".raw")) {
+		if (rawPixelData) {
 			addRawPixelDataParts(bodyBuilder, dcmAttributes);
 		}
 
 		return bodyBuilder.build();
+	}
+
+	/**
+	 * Keeps only the first frame of an uncompressed pixel data buffer and checks it
+	 * against the declared geometry. Compressed streams are sent frame by frame already
+	 * (see {@code extractPixelDataBytesFromFragments}), while raw pixel data holds every
+	 * frame back to back: the API sizes its buffer for a single frame and fails to decode
+	 * anything bigger. A buffer smaller than a single frame is a genuine inconsistency:
+	 * the request is rejected here, with the sizes at hand, rather than as an opaque HTTP
+	 * 400.
+	 * @throws DeidentifyImageException when the buffer is too small for the declared
+	 * geometry
+	 */
+	byte[] firstRawFrame(byte[] imageBytes, int rows, int columns, int bitsAllocated, int samplesPerPixel,
+			@Nullable String sopInstanceUid) {
+		int frameLength = rows * columns * samplesPerPixel * ((bitsAllocated + 7) / 8);
+		if (frameLength <= 0) {
+			log.warn("Incomplete image geometry for SOP Instance UID {} (rows={}, columns={}, bits allocated={}, "
+					+ "samples per pixel={}) - sending the pixel data as is", sopInstanceUid, rows, columns,
+					bitsAllocated, samplesPerPixel);
+			return imageBytes;
+		}
+		if (imageBytes.length < frameLength) {
+			throw new DeidentifyImageException(String.format(
+					"Pixel data of SOP Instance UID %s holds %d bytes but a single %dx%d frame of %d bit(s) and %d "
+							+ "sample(s) per pixel needs %d bytes",
+					sopInstanceUid, imageBytes.length, rows, columns, bitsAllocated, samplesPerPixel, frameLength));
+		}
+		if (imageBytes.length == frameLength) {
+			return imageBytes;
+		}
+		// Multi-frame instances (and buffers padded to an even length) are truncated to
+		// their first frame, which is the one the API is asked to inspect.
+		log.debug("Pixel data of SOP Instance UID {} holds {} bytes, keeping the first {} bytes frame", sopInstanceUid,
+				imageBytes.length, frameLength);
+		return Arrays.copyOf(imageBytes, frameLength);
 	}
 
 	private void addRawPixelDataParts(MultipartBodyBuilder bodyBuilder, Attributes attrs) {

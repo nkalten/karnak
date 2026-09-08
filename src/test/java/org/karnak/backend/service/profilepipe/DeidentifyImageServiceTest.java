@@ -10,6 +10,7 @@
 package org.karnak.backend.service.profilepipe;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -472,6 +473,93 @@ class DeidentifyImageServiceTest {
 		assertThat(sopInstanceUidPart).isNotNull();
 		String retrievedSopInstanceUid = (String) sopInstanceUidPart.getBody();
 		assertThat(retrievedSopInstanceUid).isEqualTo(sopInstanceUid);
+	}
+
+	// First raw frame
+	@Test
+	void firstRawFrame_matching_geometry_should_return_the_buffer() {
+		byte[] imageBytes = new byte[] { 1, 2, 3, 4 };
+
+		byte[] frame = this.deidentifyImageService.firstRawFrame(imageBytes, 2, 2, 8, 1, "1.2.3");
+
+		assertThat(frame).isSameAs(imageBytes);
+	}
+
+	@Test
+	void firstRawFrame_unknown_geometry_should_return_the_buffer() {
+		byte[] imageBytes = new byte[] { 1, 2, 3, 4 };
+
+		byte[] frame = this.deidentifyImageService.firstRawFrame(imageBytes, 0, 0, 0, 0, "1.2.3");
+
+		assertThat(frame).isSameAs(imageBytes);
+	}
+
+	@Test
+	void firstRawFrame_multi_frame_should_keep_the_first_frame() {
+		byte[] imageBytes = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+		byte[] frame = this.deidentifyImageService.firstRawFrame(imageBytes, 2, 2, 8, 1, "1.2.3");
+
+		assertThat(frame).containsExactly(1, 2, 3, 4);
+	}
+
+	@Test
+	void firstRawFrame_16bit_should_use_two_bytes_per_sample() {
+		byte[] imageBytes = new byte[8];
+
+		byte[] frame = this.deidentifyImageService.firstRawFrame(imageBytes, 2, 2, 16, 1, "1.2.3");
+
+		assertThat(frame).hasSize(8);
+	}
+
+	@Test
+	void firstRawFrame_buffer_smaller_than_a_frame_should_throw() {
+		byte[] imageBytes = new byte[] { 1, 2, 3 };
+
+		assertThatThrownBy(() -> this.deidentifyImageService.firstRawFrame(imageBytes, 2, 2, 8, 1, "1.2.3"))
+			.isInstanceOf(DeidentifyImageException.class)
+			.hasMessageContaining("1.2.3")
+			.hasMessageContaining("4 bytes");
+	}
+
+	@Test
+	void generateMultipartBody_with_raw_multi_frame_should_send_the_first_frame_only() {
+		Attributes attributes = new Attributes();
+		attributes.setString(Tag.PhotometricInterpretation, VR.CS, "MONOCHROME2");
+		attributes.setInt(Tag.Rows, VR.US, 2);
+		attributes.setInt(Tag.Columns, VR.US, 2);
+		attributes.setInt(Tag.BitsAllocated, VR.US, 8);
+		attributes.setInt(Tag.SamplesPerPixel, VR.US, 1);
+		attributes.setInt(Tag.NumberOfFrames, VR.IS, 2);
+		byte[] imageByte = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+		MultiValueMap<String, HttpEntity<?>> generatedBody = this.deidentifyImageService
+			.generateMultipartBody(attributes, imageByte, "", "1.2.840.10008.1.2.1");
+
+		assertThat(imagePartBytes(generatedBody)).containsExactly(1, 2, 3, 4);
+	}
+
+	@Test
+	void generateMultipartBody_with_compressed_multi_frame_should_send_the_buffer_as_is() {
+		Attributes attributes = new Attributes();
+		attributes.setInt(Tag.Rows, VR.US, 2);
+		attributes.setInt(Tag.Columns, VR.US, 2);
+		attributes.setInt(Tag.BitsAllocated, VR.US, 8);
+		attributes.setInt(Tag.SamplesPerPixel, VR.US, 1);
+		byte[] imageByte = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+		MultiValueMap<String, HttpEntity<?>> generatedBody = this.deidentifyImageService
+			.generateMultipartBody(attributes, imageByte, "", "1.2.840.10008.1.2.4.50");
+
+		assertThat(imagePartBytes(generatedBody)).containsExactly(1, 2, 3, 4, 5, 6, 7, 8);
+	}
+
+	private static byte[] imagePartBytes(MultiValueMap<String, HttpEntity<?>> body) {
+		HttpEntity<?> imagePart = body.getFirst("image");
+		assertThat(imagePart).isNotNull();
+		ByteArrayResource imageResource = (ByteArrayResource) imagePart.getBody();
+		assertThat(imageResource).isNotNull();
+		return imageResource.getByteArray();
 	}
 
 }
