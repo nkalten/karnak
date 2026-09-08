@@ -154,6 +154,102 @@ class ImageProcessingForwardIntegrationTest extends GatewayItTestSupport {
 		assertNotEquals(0, defacedPixels.length);
 	}
 
+	@Test
+	void masking_a_16bit_palette_color_image_stores_a_consistent_rgb_object() throws Exception {
+		Scp scp = startScp();
+		int rows = 16;
+		int cols = 16;
+		int frames = 2;
+		String iuid = "1.2.826.0.1.3680043.8.498.5";
+		byte[] object = serialize16bitPaletteColor(iuid, rows, cols, frames);
+
+		DicomForwardDestination dest = destination(scp, null, maskEditor(new Rectangle(0, 0, 4, 4), Color.BLACK));
+		try {
+			forwardService.storeMultipleDestination(fwdNode, List.of(dest), params(iuid, CUID_SC, object));
+		}
+		finally {
+			dest.stop();
+		}
+
+		Attributes stored = receivedDataset(scp.storageDir(), iuid);
+		// The palette is applied while decoding: the stored object is 8-bit RGB and its
+		// header must match the pixels, otherwise the receiver reads several frames as
+		// one and the colors shift.
+		assertEquals("RGB", stored.getString(Tag.PhotometricInterpretation));
+		assertEquals(3, stored.getInt(Tag.SamplesPerPixel, 0));
+		assertEquals(8, stored.getInt(Tag.BitsAllocated, 0));
+		assertEquals(8, stored.getInt(Tag.BitsStored, 0));
+		assertEquals(7, stored.getInt(Tag.HighBit, 0));
+		assertEquals(rows, stored.getInt(Tag.Rows, 0));
+		assertEquals(cols, stored.getInt(Tag.Columns, 0));
+		assertEquals(rows * cols * 3 * frames, stored.getBytes(Tag.PixelData).length);
+		assertFalse(stored.contains(Tag.RedPaletteColorLookupTableData), "the applied palette must be dropped");
+
+		// Colors: the LUT maps index i to (i, 0, 255 - i); pixel (8,8) of the first frame
+		// holds the index 8 + 8 = 16, outside the masked rectangle.
+		byte[] pixels = stored.getBytes(Tag.PixelData);
+		int offset = (8 * cols + 8) * 3;
+		assertEquals(16, pixels[offset] & 0xFF, "red channel");
+		assertEquals(0, pixels[offset + 1] & 0xFF, "green channel");
+		assertEquals(255 - 16, pixels[offset + 2] & 0xFF, "blue channel");
+	}
+
+	private static Attributes receivedDataset(Path dir, String iuid) throws IOException {
+		try (Stream<Path> files = Files.walk(dir)) {
+			for (Path file : (Iterable<Path>) files.filter(Files::isRegularFile)::iterator) {
+				try (DicomInputStream dis = new DicomInputStream(file.toFile())) {
+					dis.setIncludeBulkData(IncludeBulkData.YES);
+					Attributes data = dis.readDataset();
+					if (iuid.equals(data.getString(Tag.SOPInstanceUID))) {
+						return data;
+					}
+				}
+			}
+		}
+		throw new IllegalStateException("No stored object found for " + iuid + " under " + dir);
+	}
+
+	/**
+	 * A 16-bit PALETTE COLOR multi-frame image: the indexes are stored on 16 bits while
+	 * the LUT holds 8-bit entries, so the decoded image is 8-bit RGB.
+	 */
+	private static byte[] serialize16bitPaletteColor(String iuid, int rows, int cols, int frames) throws IOException {
+		Attributes data = baseImage(iuid, CUID_SC, rows, cols);
+		data.setString(Tag.PhotometricInterpretation, VR.CS, "PALETTE COLOR");
+		data.setInt(Tag.BitsAllocated, VR.US, 16);
+		data.setInt(Tag.BitsStored, VR.US, 16);
+		data.setInt(Tag.HighBit, VR.US, 15);
+		data.setInt(Tag.PixelRepresentation, VR.US, 0);
+		data.setInt(Tag.NumberOfFrames, VR.IS, frames);
+		int[] descriptor = { 256, 0, 8 };
+		data.setInt(Tag.RedPaletteColorLookupTableDescriptor, VR.US, descriptor);
+		data.setInt(Tag.GreenPaletteColorLookupTableDescriptor, VR.US, descriptor);
+		data.setInt(Tag.BluePaletteColorLookupTableDescriptor, VR.US, descriptor);
+		byte[] red = new byte[256];
+		byte[] green = new byte[256];
+		byte[] blue = new byte[256];
+		for (int i = 0; i < 256; i++) {
+			red[i] = (byte) i;
+			blue[i] = (byte) (255 - i);
+		}
+		data.setBytes(Tag.RedPaletteColorLookupTableData, VR.OW, red);
+		data.setBytes(Tag.GreenPaletteColorLookupTableData, VR.OW, green);
+		data.setBytes(Tag.BluePaletteColorLookupTableData, VR.OW, blue);
+
+		// 16-bit little-endian indexes: index(row, col) = row + col
+		byte[] pixels = new byte[rows * cols * 2 * frames];
+		for (int f = 0; f < frames; f++) {
+			for (int r = 0; r < rows; r++) {
+				for (int c = 0; c < cols; c++) {
+					int i = ((f * rows + r) * cols + c) * 2;
+					pixels[i] = (byte) ((r + c) & 0xFF);
+				}
+			}
+		}
+		data.setBytes(Tag.PixelData, VR.OW, pixels);
+		return toDataset(data);
+	}
+
 	// --- editors
 	// --------------------------------------------------------------------------
 

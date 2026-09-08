@@ -59,6 +59,15 @@ Some encodings need to be normalized before the image is sent to the API:
 * **`MONOCHROME1` instances.** The polarity is passed as a dedicated flag, which
   is what the API reads to invert raw pixel data before running the detection.
 
+Masking a `PALETTE COLOR` instance also changes what is **forwarded**. Applying a
+mask requires decoding the image, and the codec decodes a palette image to 8-bit
+RGB while keeping the sample depth declared by the source dataset: a 16-bit
+palette instance would be stored as "3 samples of 16 bits" holding 8-bit samples,
+which makes the receiver read several frames as one and shifts the colors. Karnak
+therefore applies the Palette Color LUT itself and forwards a plain RGB instance,
+its palette attributes (LUT descriptors and data) removed. Compressed palette
+instances are left to the codec, which derives every tag from the decoded image.
+
 ---
 
 ## Enabling the option in a profile
