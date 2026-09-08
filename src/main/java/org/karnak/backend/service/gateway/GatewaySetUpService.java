@@ -438,14 +438,14 @@ public class GatewaySetUpService {
 		switch (src) {
 			case DicomSourceNodeEntity srcNode -> {
 				if (type == NodeEventType.ADD) {
-					fwdNode.addAcceptedSourceNode(srcNode.getId(), srcNode.getAeTitle(), srcNode.getHostname());
+					addAcceptedSourceNode(fwdNode, srcNode);
 				}
 				else if (type == NodeEventType.REMOVE) {
 					fwdNode.getAcceptedSourceNodes().removeIf(s -> srcNode.getId().equals(s.getId()));
 				}
 				else if (type == NodeEventType.UPDATE) {
 					fwdNode.getAcceptedSourceNodes().removeIf(s -> srcNode.getId().equals(s.getId()));
-					fwdNode.addAcceptedSourceNode(srcNode.getId(), srcNode.getAeTitle(), srcNode.getHostname());
+					addAcceptedSourceNode(fwdNode, srcNode);
 				}
 			}
 			case DestinationEntity dstNode -> {
@@ -480,8 +480,15 @@ public class GatewaySetUpService {
 
 	private void addAcceptedSourceNodes(ForwardDicomNode fwdSrcNode, ForwardNodeEntity forwardNodeEntity) {
 		for (DicomSourceNodeEntity srcNode : forwardNodeEntity.getSourceNodes()) {
-			fwdSrcNode.addAcceptedSourceNode(srcNode.getId(), srcNode.getAeTitle(), srcNode.getHostname());
+			addAcceptedSourceNode(fwdSrcNode, srcNode);
 		}
+	}
+
+	/** Registers a source node, honoring its "Check the hostname" setting. */
+	private static void addAcceptedSourceNode(ForwardDicomNode fwdNode, DicomSourceNodeEntity srcNode) {
+		boolean checkHostname = Boolean.TRUE.equals(srcNode.getCheckHostname())
+				&& StringUtil.hasText(srcNode.getHostname());
+		fwdNode.addAcceptedSourceNode(srcNode.getId(), srcNode.getAeTitle(), srcNode.getHostname(), checkHostname);
 	}
 
 	/**

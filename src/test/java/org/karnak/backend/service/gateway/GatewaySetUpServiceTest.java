@@ -218,6 +218,35 @@ class GatewaySetUpServiceTest {
 	}
 
 	@Test
+	void should_only_validate_hostname_when_requested() {
+		ForwardNodeEntity forwardNodeEntity = new ForwardNodeEntity();
+		forwardNodeEntity.setId(1L);
+		forwardNodeEntity.setFwdAeTitle("fwdAeTitle");
+		DicomSourceNodeEntity withoutCheck = new DicomSourceNodeEntity();
+		withoutCheck.setId(1L);
+		withoutCheck.setAeTitle("SRC1");
+		withoutCheck.setHostname("");
+		withoutCheck.setCheckHostname(false);
+		DicomSourceNodeEntity withCheck = new DicomSourceNodeEntity();
+		withCheck.setId(2L);
+		withCheck.setAeTitle("SRC2");
+		withCheck.setHostname("host2");
+		withCheck.setCheckHostname(true);
+		Set<DicomSourceNodeEntity> sourceNodes = new HashSet<>();
+		sourceNodes.add(withoutCheck);
+		sourceNodes.add(withCheck);
+		forwardNodeEntity.setSourceNodes(sourceNodes);
+		Mockito.when(forwardNodeRepoMock.findAll()).thenReturn(List.of(forwardNodeEntity));
+
+		gatewaySetUpService.reloadGatewayPersistence();
+
+		Set<DicomNode> accepted = gatewaySetUpService.getDestinationNode("fwdAeTitle").get().getAcceptedSourceNodes();
+		assertEquals(2, accepted.size());
+		assertFalse(accepted.stream().filter(n -> "SRC1".equals(n.getAet())).findFirst().get().isValidateHostname());
+		assertTrue(accepted.stream().filter(n -> "SRC2".equals(n.getAet())).findFirst().get().isValidateHostname());
+	}
+
+	@Test
 	void should_update_destination() {
 		// Init data
 		DestinationEntity destinationEntity = new DestinationEntity();
