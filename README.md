@@ -93,7 +93,7 @@ To configure and run Karnak with docker compose (Karnak + Postgres + Redis), fol
 ## Run portable package
 After building the portable package (see [Build for portable package](#build-for-portable-package)), go into the generated folder `build-portable/target/karnak-<os>-jdk<version>-<karnak-version>` (for example `karnak-linux-x86-64-jdk25-...`) and launch the executable `run.sh` (Linux or macOS) or `run.bat` (Windows).
 
-Settings such as the web port and the DICOM listener can be adjusted in the `run.cfg` file located next to the executable.
+Settings such as the web port and the DICOM listener can be adjusted in the `run.cfg` file located next to the executable. On the first launch the script proposes to download the optional OCR service used by the automatic pixel de-identification (release pinned by `OCR_VERSION` in `run.cfg`), then opens the web portal in the default browser.
 
 Then open <http://localhost:8081> and log in (see [Accessing Karnak](#accessing-karnak)).
 
