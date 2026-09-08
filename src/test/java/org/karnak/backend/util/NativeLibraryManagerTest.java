@@ -79,7 +79,8 @@ class NativeLibraryManagerTest {
 
 	@Test
 	void prepare_library_does_not_mark_a_preexisting_directory_for_deletion(@TempDir Path tempDir) throws IOException {
-		// The portable package installs the library inside the app image, which must survive
+		// The portable package installs the library inside the app image, which must
+		// survive
 		// the shutdown cleanup in GatewayService#destroy.
 		Path directory = Files.createDirectories(tempDir.resolve(NativeLibraryManager.OPENCV_FOLDER));
 
@@ -91,7 +92,8 @@ class NativeLibraryManagerTest {
 
 	@Test
 	void prepare_library_does_not_overwrite_an_installed_library(@TempDir Path tempDir) throws IOException {
-		// The portable package ships the library inside the signed app image, so it must not be
+		// The portable package ships the library inside the signed app image, so it must
+		// not be
 		// rewritten from the classpath even when the jar still carries a copy.
 		Path directory = Files.createDirectories(tempDir.resolve(NativeLibraryManager.OPENCV_FOLDER));
 		Files.writeString(directory.resolve("libopencv_java.so"), "installed-by-the-packager");
