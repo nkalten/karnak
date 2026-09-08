@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,18 @@ class GatewaySetUpServiceTest {
 
 		// Build mocked service
 		gatewaySetUpService = new GatewaySetUpService(forwardNodeRepoMock, versionRepoMock, destinationRepoMock, null);
+	}
+
+	@Test
+	void should_parse_every_header_pair() {
+		Map<String, String> headers = GatewaySetUpService.parseHeaders(
+				"<key>Authorization</key>\n<value>Bearer token</value>\n<key>X-Tenant</key>\n<value>test</value>");
+
+		assertEquals(2, headers.size());
+		assertEquals("Bearer token", headers.get("Authorization"));
+		assertEquals("test", headers.get("X-Tenant"));
+		assertTrue(GatewaySetUpService.parseHeaders(null).isEmpty());
+		assertTrue(GatewaySetUpService.parseHeaders("  ").isEmpty());
 	}
 
 	@Test
