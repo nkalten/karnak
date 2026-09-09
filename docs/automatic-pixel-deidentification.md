@@ -44,6 +44,30 @@ error, or unreachable service).
 > station-name masks are **not** used. Manual masks only apply when automatic
 > generation is disabled.
 
+### Color and pixel encoding handling
+
+Some encodings need to be normalized before the image is sent to the API:
+
+* **Multi-frame instances.** Only the first frame is sent: uncompressed pixel
+  data holds every frame back to back, while the API sizes its buffer for a
+  single frame and rejects anything bigger.
+* **`PALETTE COLOR` without a usable LUT.** A palette is only sent along when its
+  descriptors and its data are consistent with each other; otherwise the image is
+  declared as `MONOCHROME2`. The pixel values are single-channel indexes, so text
+  detection is unaffected, and the API never receives a palette declaration it
+  cannot honour.
+* **`MONOCHROME1` instances.** The polarity is passed as a dedicated flag, which
+  is what the API reads to invert raw pixel data before running the detection.
+
+Masking a `PALETTE COLOR` instance also changes what is **forwarded**. Applying a
+mask requires decoding the image, and the codec decodes a palette image to 8-bit
+RGB while keeping the sample depth declared by the source dataset: a 16-bit
+palette instance would be stored as "3 samples of 16 bits" holding 8-bit samples,
+which makes the receiver read several frames as one and shifts the colors. Karnak
+therefore applies the Palette Color LUT itself and forwards a plain RGB instance,
+its palette attributes (LUT descriptors and data) removed. Compressed palette
+instances are left to the codec, which derives every tag from the decoded image.
+
 ---
 
 ## Enabling the option in a profile
