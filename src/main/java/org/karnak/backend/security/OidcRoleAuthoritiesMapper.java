@@ -77,16 +77,16 @@ public class OidcRoleAuthoritiesMapper {
 	}
 
 	/**
-	 * Returns the role names of the "karnak" entry of the "resource_access" claim of the
-	 * access token.
+	 * Returns the role names of the access token.
 	 */
 	private static Set<String> extractRoleNames(Map<String, Object> claims) {
+		Set<String> roleNames = new HashSet<>();
 		Object resourceAccessClaim = claims.get(RESOURCE_ACCESS_CLAIM);
 		if (!(resourceAccessClaim instanceof Map<?, ?> resourceAccess)) {
 			log.warn("OIDC (access token): no \"{}\" claim found. The IDP must include the client roles of the "
 					+ "\"{}\" client in the access token (Keycloak: client scope \"roles\", mapper "
 					+ "\"Add to access token\" enabled).", RESOURCE_ACCESS_CLAIM, KARNAK_CLIENT);
-			return Set.of();
+			return roleNames;
 		}
 		if (!resourceAccess.containsKey(KARNAK_CLIENT)) {
 			log.warn(
@@ -96,9 +96,9 @@ public class OidcRoleAuthoritiesMapper {
 		}
 		if (resourceAccess.get(KARNAK_CLIENT) instanceof Map<?, ?> resource
 				&& resource.get(ROLES_CLAIM) instanceof Collection<?> roles) {
-			return roles.stream().filter(String.class::isInstance).map(String.class::cast).collect(Collectors.toSet());
+			roles.stream().filter(String.class::isInstance).map(String.class::cast).forEach(roleNames::add);
 		}
-		return Set.of();
+		return roleNames;
 	}
 
 }
