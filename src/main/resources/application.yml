@@ -20,13 +20,22 @@ logging:
          cpr:
            # Suppress WARN  a.c.c.AtmosphereFramework - No BroadcasterCache configured
            AtmosphereFramework: ERROR
+      apache:
+        kafka: ERROR
     com:
       vaadin:
-          copilot:
+        copilot:
           # Copilot's release-note fetch fails behind TLS-inspecting proxies (PKIX
           # path building failed). The call is cosmetic, so silence its logger to
           # drop the noisy stack trace.
           VersionReleaseNoteHandler: "OFF"
+        flow:
+          server:
+            communication:
+              # Suppress WARN  c.v.f.s.c.ReturnChannelHandler - Ignoring update for disabled return channel
+              rpc:
+                MapSyncRpcHandler: ERROR
+              ReturnChannelHandler: ERROR
 # Dev-mode Copilot (Vaadin dev tools). Disabled: a browser tab still holding a
 # Copilot connection after a server restart sends a copilot-* push message for
 # which the server has no CopilotSession, so Copilot.handleMessage throws
