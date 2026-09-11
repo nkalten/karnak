@@ -2,13 +2,85 @@
 
 [![Sonar](https://sonarcloud.io/api/project_badges/measure?project=nroduit_karnak&metric=ncloc)](https://sonarcloud.io/component_measures?id=nroduit_karnak) [![Sonar](https://sonarcloud.io/api/project_badges/measure?project=nroduit_karnak&metric=coverage)](https://sonarcloud.io/component_measures?id=nroduit_karnak&metric=coverage) [![Sonar](https://sonarcloud.io/api/project_badges/measure?project=nroduit_karnak&metric=reliability_rating)](https://sonarcloud.io/component_measures?id=nroduit_karnak) [![Sonar](https://sonarcloud.io/api/project_badges/measure?project=nroduit_karnak&metric=sqale_rating)](https://sonarcloud.io/component_measures?id=nroduit_karnak) [![Sonar](https://sonarcloud.io/api/project_badges/measure?project=nroduit_karnak&metric=security_rating)](https://sonarcloud.io/component_measures?id=nroduit_karnak) [![Sonar](https://sonarcloud.io/api/project_badges/measure?project=nroduit_karnak&metric=alert_status)](https://sonarcloud.io/dashboard?id=nroduit_karnak)
 
-Karnak is a DICOM gateway designed for data de-identification and DICOM attribute normalization. It manages continuous DICOM data streams, functioning as a DICOM listener for input and supporting both DICOM and DICOMWeb formats for output.
+**Karnak** is an open-source DICOM gateway for **de-identification**, **tag morphing** and **DICOM conformance checks**. It sits between the imaging network and the archives: it receives studies from modalities, PACS and workstations through a DICOM listener, transforms them according to configurable YAML profiles, and forwards the result to one or more destinations over DICOM (C-STORE) or DICOMweb (STOW-RS). Everything is configured and monitored from a web portal.
 
-In practice, Karnak receives DICOM studies from one or more **sources** (modalities, PACS, workstations…), applies a configurable **de-identification / tag-morphing profile**, and forwards the result to one or more **destinations** over DICOM or DICOMWeb (STOW-RS). Everything is configured and monitored from a web interface.
+![Karnak DICOM gateway: DICOM data from every modality is transformed into de-identified, tag-morphed and conformant data](img/karnak-gateway.svg)
 
 For detailed usage instructions, refer to the [Karnak User Guide](https://weasis.org/karnak-documentation/).
 
-# Application Features
+# How it works
+
+## Deployment workflow
+
+A typical deployment feeds a research repository that lives **outside** the hospital or imaging center: another institution, a research network or the cloud.
+
+![Deployment workflow: hospital network with modalities, PACS and workstations sending DICOM C-STORE to Karnak; Karnak forwards de-identified studies with DICOMweb STOW-RS over HTTPS across the network boundary to a research repository](img/karnak-workflow.svg)
+
+- **Inside the network**, the DICOM protocol is used as usual: modalities, the PACS or a workstation send studies to a Karnak *forward node* (an AE Title on the DICOM listener) with C-STORE. Karnak can authenticate the callers by AE Title and hostname.
+- **Across the network boundary**, Karnak sends the de-identified studies to the repository with **DICOMweb STOW-RS over HTTPS**. This is the recommended protocol for any destination outside the trusted network: the transfer is encrypted with TLS, authenticated with an OAuth 2 bearer token or Basic auth, and only needs one outbound HTTPS connection, so no DICOM port is ever exposed to the Internet.
+- An on-site archive (a research PACS in the same network) can still be reached with plain C-STORE, and both kinds of destinations can be combined on the same forward node.
+
+## Processing pipeline
+
+The forward node addressed by the called AE Title checks the calling source, then routes each accepted instance to one or more destinations, where it goes through the following pipeline once per destination. Every step is configured on the [destination](https://weasis.org/karnak-documentation/en/userguide/gateway/destinations/).
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "15px", "textColor": "#0b1f3f", "primaryTextColor": "#0b1f3f", "lineColor": "#334155", "edgeLabelBackground": "#ffffff", "labelTextColor": "#0b1f3f", "clusterBkg": "#f4f8fd", "clusterBorder": "#2f6fb5", "titleColor": "#0b1f3f"}}}%%
+flowchart LR
+    src["Modality, PACS<br>or workstation"]:::ext
+    src -->|"<b>DICOM C-STORE</b>"| fwd
+
+    subgraph karnak["Karnak gateway"]
+        direction LR
+        fwd["Forward node<br><i>DICOM listener, AE Title</i><br>routes to one or more destinations"]:::karnak
+        auth{"Source<br>authorized?"}:::karnak
+        reject["Instance refused<br>not authorized"]:::stop
+        fwd --> auth
+        auth -->|"<b>no</b>"| reject
+        subgraph dest["For each destination of the forward node"]
+            direction LR
+            filter["Conditions and<br>SOP class filter"]:::step
+            skip["Instance<br>skipped"]:::stop
+            profile["Profile<br>de-identification<br>or tag morphing"]:::step
+            pixels["Pixel cleaning<br>masks, OCR, defacing"]:::step
+            ts["Transfer syntax<br>adaptation"]:::step
+            project[("Project secret<br>Pseudonyms from cache,<br>DICOM tag or API")]:::data
+            filter -.->|"<b>no match</b>"| skip
+            filter --> profile --> pixels --> ts
+            project -.-> profile
+        end
+        auth ==>|"<b>yes</b>"| filter
+    end
+
+    ts -->|"<b>DICOM C-STORE</b>"| pacs["On-site PACS<br>or archive"]:::dicom
+    ts -->|"<b>STOW-RS over HTTPS</b>"| web["DICOMweb repository<br>outside the network"]:::web
+    ts -.-> report["Monitoring, notifications,<br>conformance report"]:::ext
+
+    classDef ext fill:#334155,stroke:#1e293b,stroke-width:1.5px,color:#ffffff,font-weight:bold;
+    classDef karnak fill:#0b4a8f,stroke:#062f5e,stroke-width:1.5px,color:#ffffff,font-weight:bold;
+    classDef step fill:#2f6fb5,stroke:#1d4f8f,stroke-width:1.5px,color:#ffffff,font-weight:bold;
+    classDef data fill:#4c3fb5,stroke:#332a80,stroke-width:1.5px,color:#ffffff,font-weight:bold;
+    classDef stop fill:#b91c1c,stroke:#7f1d1d,stroke-width:1.5px,color:#ffffff,font-weight:bold;
+    classDef dicom fill:#1d4f8f,stroke:#0b1f3f,stroke-width:1.5px,color:#ffffff,font-weight:bold;
+    classDef web fill:#0b7a6e,stroke:#064e46,stroke-width:1.5px,color:#ffffff,font-weight:bold;
+    style karnak fill:#e3edf9,stroke:#1d4f8f,stroke-width:1.5px,color:#0b1f3f
+    style dest fill:#ffe9b8,stroke:#d9932e,stroke-width:1.5px,color:#0b1f3f
+    linkStyle 0,9 stroke:#1d4f8f,stroke-width:2.5px
+    linkStyle 10 stroke:#0b7a6e,stroke-width:2.5px
+    linkStyle 2,3 stroke:#b91c1c,stroke-width:2px
+    linkStyle 11 stroke:#1e293b,stroke-width:2.5px
+    linkStyle 7 stroke:#4c3fb5,stroke-width:2.5px
+    linkStyle 1,8 stroke:#0b4a8f,stroke-width:3px
+```
+
+1. **Source check**: if the forward node declares [sources](https://weasis.org/karnak-documentation/en/userguide/gateway/sources/), only those AE Titles (and optionally hostnames) are accepted; any other caller gets the DICOM status *Not authorized* and nothing is forwarded.
+2. **Filtering**: a destination can restrict the forwarded SOP Classes and evaluate an [expression on the DICOM attributes](https://weasis.org/karnak-documentation/en/profiles/conditions/); instances that do not match are skipped for that destination only.
+3. **Profile**: the destination applies either a [de-identification profile](https://weasis.org/karnak-documentation/en/profiles/) (DICOM PS3.15 basic profile, tag actions, date shifting, UID re-mapping, pseudonymization driven by the project secret) or a tag-morphing profile that normalizes attributes without de-identifying.
+4. **Pixel cleaning**: burned-in annotations are masked with hand-defined areas or automatically with the [OCR service](https://weasis.org/karnak-documentation/en/profiles/masks/), and head CT studies can be defaced.
+5. **Transfer syntax**: the image is transcoded when the destination requires another transfer syntax.
+6. **Send and report**: the instance is sent with C-STORE or STOW-RS; the transfer is tracked in [Monitoring](https://weasis.org/karnak-documentation/en/userguide/monitoring/), summarized in email notifications and optionally validated in a [DICOM conformance report](https://weasis.org/karnak-documentation/en/userguide/conformancereport/).
+
+# Features
 
 ## Gateway
 
@@ -42,12 +114,14 @@ For detailed usage instructions, refer to the [Karnak User Guide](https://weasis
 
 ## Monitoring
 
-- Track the transfer status of forwarded studies from the web interface, with filtering.
+- Follow transfers in a destination, study and series tree, compare original and de-identified
+  values, and export the activity as CSV.
+- Optional email notifications per destination and per-study DICOM conformance reports.
 
-## DICOM Web Tools
+## DICOM tools
 
-- Built-in tools to check connectivity and query remote nodes: C-ECHO (with a persisted check
-  history) and Modality Worklist (MWL) queries.
+- Built-in tools to test and probe DICOM nodes and DICOMweb endpoints: C-ECHO (with a persisted
+  check history), Modality Worklist (MWL) queries and DICOMweb capability checks.
 
 # Getting started
 
@@ -239,11 +313,3 @@ An OpenID Connect identity provider can be configured by using the environment v
 # API / Endpoints
 
 Karnak exposes a small REST API in addition to the web interface. An OpenAPI (Swagger) description is generated by springdoc and the C-ECHO endpoint is available at `/api/echo`. For the full list of endpoints and their usage, refer to the [Karnak User Guide](https://weasis.org/karnak-documentation/).
-
-# Workflow
-
-![Workflow](img/karnak-workflow.svg)
-
-# Pipeline
-
-![Workflow](img/karnak-pipeline.svg)
