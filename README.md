@@ -24,54 +24,7 @@ A typical deployment feeds a research repository that lives **outside** the hosp
 
 The forward node addressed by the called AE Title checks the calling source, then routes each accepted instance to one or more destinations, where it goes through the following pipeline once per destination. Every step is configured on the [destination](https://weasis.org/karnak-documentation/en/userguide/gateway/destinations/).
 
-```mermaid
-%%{init: {"theme": "base", "themeVariables": {"fontSize": "15px", "textColor": "#0b1f3f", "primaryTextColor": "#0b1f3f", "lineColor": "#334155", "edgeLabelBackground": "#ffffff", "labelTextColor": "#0b1f3f", "clusterBkg": "#f4f8fd", "clusterBorder": "#2f6fb5", "titleColor": "#0b1f3f"}}}%%
-flowchart LR
-    src["Modality, PACS<br>or workstation"]:::ext
-    src -->|"<b>DICOM C-STORE</b>"| fwd
-
-    subgraph karnak["Karnak gateway"]
-        direction LR
-        fwd["Forward node<br><i>DICOM listener, AE Title</i><br>routes to one or more destinations"]:::karnak
-        auth{"Source<br>authorized?"}:::karnak
-        reject["Instance refused<br>not authorized"]:::stop
-        fwd --> auth
-        auth -->|"<b>no</b>"| reject
-        subgraph dest["For each destination of the forward node"]
-            direction LR
-            filter["Conditions and<br>SOP class filter"]:::step
-            skip["Instance<br>skipped"]:::stop
-            profile["Profile<br>de-identification<br>or tag morphing"]:::step
-            pixels["Pixel cleaning<br>masks, OCR, defacing"]:::step
-            ts["Transfer syntax<br>adaptation"]:::step
-            project[("Project secret<br>Pseudonyms from cache,<br>DICOM tag or API")]:::data
-            filter -.->|"<b>no match</b>"| skip
-            filter --> profile --> pixels --> ts
-            project -.-> profile
-        end
-        auth ==>|"<b>yes</b>"| filter
-    end
-
-    ts -->|"<b>DICOM C-STORE</b>"| pacs["On-site PACS<br>or archive"]:::dicom
-    ts -->|"<b>STOW-RS over HTTPS</b>"| web["DICOMweb repository<br>outside the network"]:::web
-    ts -.-> report["Monitoring, notifications,<br>conformance report"]:::ext
-
-    classDef ext fill:#334155,stroke:#1e293b,stroke-width:1.5px,color:#ffffff,font-weight:bold;
-    classDef karnak fill:#0b4a8f,stroke:#062f5e,stroke-width:1.5px,color:#ffffff,font-weight:bold;
-    classDef step fill:#2f6fb5,stroke:#1d4f8f,stroke-width:1.5px,color:#ffffff,font-weight:bold;
-    classDef data fill:#4c3fb5,stroke:#332a80,stroke-width:1.5px,color:#ffffff,font-weight:bold;
-    classDef stop fill:#b91c1c,stroke:#7f1d1d,stroke-width:1.5px,color:#ffffff,font-weight:bold;
-    classDef dicom fill:#1d4f8f,stroke:#0b1f3f,stroke-width:1.5px,color:#ffffff,font-weight:bold;
-    classDef web fill:#0b7a6e,stroke:#064e46,stroke-width:1.5px,color:#ffffff,font-weight:bold;
-    style karnak fill:#e3edf9,stroke:#1d4f8f,stroke-width:1.5px,color:#0b1f3f
-    style dest fill:#ffe9b8,stroke:#d9932e,stroke-width:1.5px,color:#0b1f3f
-    linkStyle 0,9 stroke:#1d4f8f,stroke-width:2.5px
-    linkStyle 10 stroke:#0b7a6e,stroke-width:2.5px
-    linkStyle 2,3 stroke:#b91c1c,stroke-width:2px
-    linkStyle 11 stroke:#1e293b,stroke-width:2.5px
-    linkStyle 7 stroke:#4c3fb5,stroke-width:2.5px
-    linkStyle 1,8 stroke:#0b4a8f,stroke-width:3px
-```
+The pipeline is illustrated step by step in the user guide: [How Karnak works, processing pipeline](https://weasis.org/karnak-documentation/en/overview/#processing-pipeline).
 
 1. **Source check**: if the forward node declares [sources](https://weasis.org/karnak-documentation/en/userguide/gateway/sources/), only those AE Titles (and optionally hostnames) are accepted; any other caller gets the DICOM status *Not authorized* and nothing is forwarded.
 2. **Filtering**: a destination can restrict the forwarded SOP Classes and evaluate an [expression on the DICOM attributes](https://weasis.org/karnak-documentation/en/profiles/conditions/); instances that do not match are skipped for that destination only.
